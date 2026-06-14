@@ -41,11 +41,20 @@ export function ArpanApp() {
 
   const loadPosts = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
+    const { data: posts } = await supabase
       .from("posts")
-      .select("id,user_id,title_bn,title_en,category,emoji,tile,area,condition,note,created_at,profiles!posts_user_id_fkey(display_name)")
+      .select("id,user_id,title_bn,title_en,category,emoji,tile,area,condition,note,created_at")
       .order("created_at", { ascending: false });
-    const mapped: Item[] = (data ?? []).map((r: any) => ({
+    const userIds = Array.from(new Set((posts ?? []).map((p: any) => p.user_id)));
+    let profileMap: Record<string, string> = {};
+    if (userIds.length) {
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id,display_name")
+        .in("id", userIds);
+      profileMap = Object.fromEntries((profs ?? []).map((p: any) => [p.id, p.display_name]));
+    }
+    const mapped: Item[] = (posts ?? []).map((r: any) => ({
       id: r.id,
       bn: r.title_bn,
       en: r.title_en ?? "",
@@ -54,7 +63,7 @@ export function ArpanApp() {
       tile: (TILES.includes(r.tile) ? r.tile : "leaf") as Item["tile"],
       area: r.area,
       cond: r.condition,
-      giver: r.profiles?.display_name ?? "অর্পণ ব্যবহারকারী",
+      giver: profileMap[r.user_id] ?? "অর্পণ ব্যবহারকারী",
       note: r.note ?? "",
       postedAgo: timeAgoBn(r.created_at),
       _db: true,
