@@ -14,7 +14,110 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      favorites: {
+        Row: {
+          created_at: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "favorites_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      posts: {
+        Row: {
+          area: string
+          category: string
+          condition: string
+          created_at: string
+          emoji: string
+          id: string
+          note: string | null
+          status: string
+          tile: string
+          title_bn: string
+          title_en: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          area: string
+          category: string
+          condition?: string
+          created_at?: string
+          emoji?: string
+          id?: string
+          note?: string | null
+          status?: string
+          tile?: string
+          title_bn: string
+          title_en?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          area?: string
+          category?: string
+          condition?: string
+          created_at?: string
+          emoji?: string
+          id?: string
+          note?: string | null
+          status?: string
+          tile?: string
+          title_bn?: string
+          title_en?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          area: string | null
+          avatar_url: string | null
+          created_at: string
+          display_name: string
+          id: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          area?: string | null
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string
+          id: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          area?: string | null
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string
+          id?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
