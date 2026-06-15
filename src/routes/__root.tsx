@@ -79,11 +79,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "অর্পণ · Arpan — মানুষের জন্য মানুষ" },
-      { name: "description", content: "Arpan (অর্পণ) is a Bengali community sharing app for Dhaka — give what you no longer need, take what you do. Free, neighbourly, kind." },
+      { name: "description", content: "Arpan is a Bengali community sharing app — give what you no longer need, take what you do. Free, neighbourly, kind." },
       { name: "author", content: "Arpan" },
-      { property: "og:site_name", content: "অর্পণ · Arpan" },
+      { property: "og:title", content: "অর্পণ · Arpan — মানুষের জন্য মানুষ" },
+      { property: "og:description", content: "Arpan is a Bengali community sharing app — give what you no longer need, take what you do. Free, neighbourly, kind." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
+      { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "অর্পণ · Arpan — মানুষের জন্য মানুষ" },
+      { name: "twitter:description", content: "Arpan is a Bengali community sharing app — give what you no longer need, take what you do. Free, neighbourly, kind." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/ed795bcd-7d34-4295-bc50-7ae0c8ae459d/id-preview-56c6c9f9--e48dc5c5-33e5-4a7e-a4ea-34e7423caff0.lovable.app-1781496530299.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/ed795bcd-7d34-4295-bc50-7ae0c8ae459d/id-preview-56c6c9f9--e48dc5c5-33e5-4a7e-a4ea-34e7423caff0.lovable.app-1781496530299.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -92,29 +98,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Baloo+Da+2:wght@500;600;700;800&family=Hind+Siliguri:wght@300;400;500;600;700&display=swap",
-      },
-    ],
-    scripts: [
-      {
-        type: "application/ld+json",
-        children: JSON.stringify({
-          "@context": "https://schema.org",
-          "@graph": [
-            {
-              "@type": "Organization",
-              name: "অর্পণ · Arpan",
-              url: "https://arpanbd.lovable.app",
-              description: "Bengali community sharing platform connecting givers and receivers in Dhaka.",
-              areaServed: "Dhaka, Bangladesh",
-            },
-            {
-              "@type": "WebSite",
-              name: "অর্পণ · Arpan",
-              url: "https://arpanbd.lovable.app",
-              inLanguage: "bn",
-            },
-          ],
-        }),
       },
     ],
   }),
