@@ -500,7 +500,7 @@ function PostScreen({ user, goAuth, onDone }: { user: any; goAuth: () => void; o
   if (!user) {
     return (
       <div className="px-6 pt-32 text-center">
-        <div className="font-display font-bold text-[18px] text-leaf">পোস্ট করতে সাইন ইন করুন</div>
+        <h1 className="font-display font-bold text-[18px] text-leaf">পোস্ট করতে সাইন ইন করুন</h1>
         <p className="text-[13px] text-ink-soft mt-2">আপনার দান অন্যের কাজে লাগুক — অ্যাকাউন্ট খুলুন বা সাইন ইন করুন।</p>
         <button onClick={goAuth} className="mt-5 bg-leaf text-white font-bold px-6 h-12 rounded-2xl shadow-leaf">
           সাইন ইন
