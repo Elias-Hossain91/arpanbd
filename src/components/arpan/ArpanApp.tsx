@@ -249,6 +249,7 @@ function HomeScreen({
   return (
     <div>
       <div className="bg-card" style={{ padding: "48px 18px 18px" }}>
+        <h1 className="sr-only">অর্পণ — মানুষের জন্য মানুষ</h1>
         <div className="flex items-center justify-between">
           <Logo />
           <div className="flex items-center gap-2">
@@ -257,6 +258,7 @@ function HomeScreen({
             </button>
             {user ? (
               <button
+                aria-label="Notifications"
                 className="flex items-center justify-center rounded-full bg-paper border border-border relative"
                 style={{ width: 36, height: 36 }}
               >
@@ -417,7 +419,7 @@ function DetailScreen({
       <Stitch />
 
       <div className="px-5 pt-5">
-        <div className="font-display font-bold text-[22px] text-ink leading-tight">{item.bn}</div>
+        <h1 className="font-display font-bold text-[22px] text-ink leading-tight">{item.bn}</h1>
         {item.en && <div className="text-[13px] text-ink-soft mt-0.5">{item.en}</div>}
 
         <div className="flex gap-2 mt-3 flex-wrap">
@@ -498,7 +500,7 @@ function PostScreen({ user, goAuth, onDone }: { user: any; goAuth: () => void; o
   if (!user) {
     return (
       <div className="px-6 pt-32 text-center">
-        <div className="font-display font-bold text-[18px] text-leaf">পোস্ট করতে সাইন ইন করুন</div>
+        <h1 className="font-display font-bold text-[18px] text-leaf">পোস্ট করতে সাইন ইন করুন</h1>
         <p className="text-[13px] text-ink-soft mt-2">আপনার দান অন্যের কাজে লাগুক — অ্যাকাউন্ট খুলুন বা সাইন ইন করুন।</p>
         <button onClick={goAuth} className="mt-5 bg-leaf text-white font-bold px-6 h-12 rounded-2xl shadow-leaf">
           সাইন ইন
@@ -536,7 +538,7 @@ function PostScreen({ user, goAuth, onDone }: { user: any; goAuth: () => void; o
   return (
     <div>
       <div className="bg-card" style={{ padding: "48px 18px 16px" }}>
-        <div className="font-display font-bold text-[20px] text-leaf">একটি জিনিস দিন</div>
+        <h1 className="font-display font-bold text-[20px] text-leaf">একটি জিনিস দিন</h1>
         <div className="text-[13px] text-ink-soft mt-0.5">যা আর লাগছে না, তা অন্যের কাজে লাগুক</div>
       </div>
       <Stitch />
@@ -663,7 +665,7 @@ function ActivityScreen({
   if (!user) {
     return (
       <div className="px-6 pt-32 text-center">
-        <div className="font-display font-bold text-[18px] text-leaf">আপনার কার্যক্রম দেখতে সাইন ইন করুন</div>
+        <h1 className="font-display font-bold text-[18px] text-leaf">আপনার কার্যক্রম দেখতে সাইন ইন করুন</h1>
         <p className="text-[13px] text-ink-soft mt-2">পছন্দ ও নিজের পোস্ট এক জায়গায় পরিচালনা করুন।</p>
         <button onClick={goAuth} className="mt-5 bg-leaf text-white font-bold px-6 h-12 rounded-2xl shadow-leaf">
           সাইন ইন
@@ -691,7 +693,7 @@ function ActivityScreen({
             {name[0]}
           </div>
           <div className="flex-1">
-            <div className="text-white font-bold text-[18px] font-display">{name}</div>
+            <h1 className="text-white font-bold text-[18px] font-display">{name}</h1>
             <div className="flex items-center gap-1 text-marigold-soft text-[13px]">
               <Award size={14} /> সমাজ-বন্ধু · {profile?.area ?? "ঢাকা"}
             </div>

@@ -10,8 +10,13 @@ export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: "সাইন ইন · অর্পণ" },
-      { name: "description", content: "অর্পণে যোগ দিন — পছন্দ সংরক্ষণ করুন, নিজের পোস্ট পরিচালনা করুন।" },
+      { name: "description", content: "অর্পণে সাইন ইন বা সাইন আপ করুন — পছন্দের জিনিস সংরক্ষণ করুন এবং নিজের পোস্ট পরিচালনা করুন।" },
+      { property: "og:title", content: "সাইন ইন · অর্পণ" },
+      { property: "og:description", content: "অর্পণে যোগ দিন — পছন্দ সংরক্ষণ করুন, নিজের পোস্ট পরিচালনা করুন।" },
+      { property: "og:url", content: "https://arpanbd.lovable.app/auth" },
+      { name: "robots", content: "noindex" },
     ],
+    links: [{ rel: "canonical", href: "https://arpanbd.lovable.app/auth" }],
   }),
   component: AuthPage,
 });

@@ -79,13 +79,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "অর্পণ · Arpan — মানুষের জন্য মানুষ" },
-      { name: "description", content: "Arpan is a Bengali community sharing app — give what you no longer need, take what you do. Free, neighbourly, kind." },
+      { name: "description", content: "Arpan (অর্পণ) is a Bengali community sharing app for Dhaka — give what you no longer need, take what you do. Free, neighbourly, kind." },
       { name: "author", content: "Arpan" },
-      { property: "og:title", content: "অর্পণ · Arpan" },
-      { property: "og:description", content: "দিন যা লাগবে না · নিন যা দরকার · সবই বিনামূল্যে" },
+      { property: "og:site_name", content: "অর্পণ · Arpan" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -94,6 +92,29 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Baloo+Da+2:wght@500;600;700;800&family=Hind+Siliguri:wght@300;400;500;600;700&display=swap",
+      },
+    ],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "Organization",
+              name: "অর্পণ · Arpan",
+              url: "https://arpanbd.lovable.app",
+              description: "Bengali community sharing platform connecting givers and receivers in Dhaka.",
+              areaServed: "Dhaka, Bangladesh",
+            },
+            {
+              "@type": "WebSite",
+              name: "অর্পণ · Arpan",
+              url: "https://arpanbd.lovable.app",
+              inLanguage: "bn",
+            },
+          ],
+        }),
       },
     ],
   }),
