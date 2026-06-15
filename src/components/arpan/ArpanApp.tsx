@@ -419,7 +419,7 @@ function DetailScreen({
       <Stitch />
 
       <div className="px-5 pt-5">
-        <div className="font-display font-bold text-[22px] text-ink leading-tight">{item.bn}</div>
+        <h1 className="font-display font-bold text-[22px] text-ink leading-tight">{item.bn}</h1>
         {item.en && <div className="text-[13px] text-ink-soft mt-0.5">{item.en}</div>}
 
         <div className="flex gap-2 mt-3 flex-wrap">
