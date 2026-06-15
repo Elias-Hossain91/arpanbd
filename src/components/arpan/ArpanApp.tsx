@@ -693,7 +693,7 @@ function ActivityScreen({
             {name[0]}
           </div>
           <div className="flex-1">
-            <div className="text-white font-bold text-[18px] font-display">{name}</div>
+            <h1 className="text-white font-bold text-[18px] font-display">{name}</h1>
             <div className="flex items-center gap-1 text-marigold-soft text-[13px]">
               <Award size={14} /> সমাজ-বন্ধু · {profile?.area ?? "ঢাকা"}
             </div>
