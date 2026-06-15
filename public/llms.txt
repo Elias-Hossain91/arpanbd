@@ -1,0 +1,9 @@
+# অর্পণ · Arpan
+
+> Bengali community sharing app for Dhaka — give what you no longer need, take what you do. Free, neighbourly, kind.
+
+Arpan (অর্পণ) connects neighbours in Dhaka, Bangladesh so people can pass on items they no longer need to others who do — at no cost. Categories include furniture, mobility aids, clothing, books, household goods, and more.
+
+## Pages
+
+- [Home](/): Browse free items posted by neighbours in Dhaka.
