@@ -538,7 +538,7 @@ function PostScreen({ user, goAuth, onDone }: { user: any; goAuth: () => void; o
   return (
     <div>
       <div className="bg-card" style={{ padding: "48px 18px 16px" }}>
-        <div className="font-display font-bold text-[20px] text-leaf">একটি জিনিস দিন</div>
+        <h1 className="font-display font-bold text-[20px] text-leaf">একটি জিনিস দিন</h1>
         <div className="text-[13px] text-ink-soft mt-0.5">যা আর লাগছে না, তা অন্যের কাজে লাগুক</div>
       </div>
       <Stitch />
