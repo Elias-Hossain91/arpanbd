@@ -249,6 +249,7 @@ function HomeScreen({
   return (
     <div>
       <div className="bg-card" style={{ padding: "48px 18px 18px" }}>
+        <h1 className="sr-only">অর্পণ — মানুষের জন্য মানুষ</h1>
         <div className="flex items-center justify-between">
           <Logo />
           <div className="flex items-center gap-2">
@@ -257,6 +258,7 @@ function HomeScreen({
             </button>
             {user ? (
               <button
+                aria-label="Notifications"
                 className="flex items-center justify-center rounded-full bg-paper border border-border relative"
                 style={{ width: 36, height: 36 }}
               >
