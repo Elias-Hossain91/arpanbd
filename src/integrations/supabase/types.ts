@@ -88,6 +88,27 @@ export type Database = {
         }
         Relationships: []
       }
+      profile_private: {
+        Row: {
+          created_at: string
+          id: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           area: string | null
@@ -95,7 +116,6 @@ export type Database = {
           created_at: string
           display_name: string
           id: string
-          phone: string | null
           updated_at: string
         }
         Insert: {
@@ -104,7 +124,6 @@ export type Database = {
           created_at?: string
           display_name?: string
           id: string
-          phone?: string | null
           updated_at?: string
         }
         Update: {
@@ -113,7 +132,6 @@ export type Database = {
           created_at?: string
           display_name?: string
           id?: string
-          phone?: string | null
           updated_at?: string
         }
         Relationships: []
