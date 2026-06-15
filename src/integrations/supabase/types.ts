@@ -120,30 +120,27 @@ export type Database = {
       }
     }
     Views: {
-      profiles_public: {
-        Row: {
-          area: string | null
-          avatar_url: string | null
-          display_name: string | null
-          id: string | null
-        }
-        Insert: {
-          area?: string | null
-          avatar_url?: string | null
-          display_name?: string | null
-          id?: string | null
-        }
-        Update: {
-          area?: string | null
-          avatar_url?: string | null
-          display_name?: string | null
-          id?: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_my_profile: {
+        Args: never
+        Returns: {
+          area: string | null
+          avatar_url: string | null
+          created_at: string
+          display_name: string
+          id: string
+          phone: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
       [_ in never]: never
