@@ -44,6 +44,8 @@ export type Database = {
         Row: {
           area: string
           category: string
+          collected_at: string | null
+          collected_by: string | null
           condition: string
           created_at: string
           emoji: string
@@ -59,6 +61,8 @@ export type Database = {
         Insert: {
           area: string
           category: string
+          collected_at?: string | null
+          collected_by?: string | null
           condition?: string
           created_at?: string
           emoji?: string
@@ -74,6 +78,8 @@ export type Database = {
         Update: {
           area?: string
           category?: string
+          collected_at?: string | null
+          collected_by?: string | null
           condition?: string
           created_at?: string
           emoji?: string
@@ -115,7 +121,12 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           display_name: string
+          district: string | null
           id: string
+          items_given: number
+          items_received: number
+          points: number
+          show_phone: boolean
           updated_at: string
         }
         Insert: {
@@ -123,7 +134,12 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           display_name?: string
+          district?: string | null
           id: string
+          items_given?: number
+          items_received?: number
+          points?: number
+          show_phone?: boolean
           updated_at?: string
         }
         Update: {
@@ -131,7 +147,12 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           display_name?: string
+          district?: string | null
           id?: string
+          items_given?: number
+          items_received?: number
+          points?: number
+          show_phone?: boolean
           updated_at?: string
         }
         Relationships: []

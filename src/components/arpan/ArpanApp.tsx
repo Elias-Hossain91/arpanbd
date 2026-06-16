@@ -645,22 +645,73 @@ function Field({ label, ph, val, set, area }: { label: string; ph: string; val: 
 
 /* -------------------- ACTIVITY -------------------- */
 
+const BD_DISTRICTS = [
+  "ঢাকা","চট্টগ্রাম","রাজশাহী","খুলনা","সিলেট","বরিশাল","রংপুর","ময়মনসিংহ",
+  "কুমিল্লা","নারায়ণগঞ্জ","গাজীপুর","নরসিংদী","টাঙ্গাইল","জামালপুর","শেরপুর","নেত্রকোনা",
+  "কিশোরগঞ্জ","মুন্সিগঞ্জ","মানিকগঞ্জ","ফরিদপুর","রাজবাড়ী","গোপালগঞ্জ","মাদারীপুর","শরীয়তপুর",
+  "ব্রাহ্মণবাড়িয়া","চাঁদপুর","লক্ষ্মীপুর","নোয়াখালী","ফেনী","কক্সবাজার","বান্দরবান","রাঙ্গামাটি",
+  "খাগড়াছড়ি","বগুড়া","জয়পুরহাট","নওগাঁ","নাটোর","চাঁপাইনবাবগঞ্জ","পাবনা","সিরাজগঞ্জ",
+  "যশোর","ঝিনাইদহ","মাগুরা","নড়াইল","বাগেরহাট","সাতক্ষীরা","কুষ্টিয়া","চুয়াডাঙ্গা","মেহেরপুর",
+  "ভোলা","বরগুনা","পটুয়াখালী","পিরোজপুর","ঝালকাঠি","দিনাজপুর","পঞ্চগড়","ঠাকুরগাঁও","নীলফামারী",
+  "লালমনিরহাট","কুড়িগ্রাম","গাইবান্ধা","হবিগঞ্জ","মৌলভীবাজার","সুনামগঞ্জ",
+];
+
+type ProfileRow = {
+  display_name: string;
+  area: string | null;
+  district: string | null;
+  points: number;
+  items_given: number;
+  items_received: number;
+  show_phone: boolean;
+};
+
+const BADGES = [
+  { min: 300, name: "কমিউনিটি হিরো", color: "bg-marigold text-white" },
+  { min: 150, name: "সমাজবন্ধু", color: "bg-leaf text-white" },
+  { min: 50,  name: "সাহায্যকারী", color: "bg-marigold-soft text-marigold" },
+  { min: 0,   name: "নতুন সদস্য", color: "bg-leaf-soft text-leaf" },
+];
+
+function badgeFor(points: number) {
+  return BADGES.find((b) => points >= b.min) ?? BADGES[BADGES.length - 1];
+}
+
+function nextBadge(points: number) {
+  const higher = BADGES.filter((b) => b.min > points).sort((a, b) => a.min - b.min);
+  return higher[0];
+}
+
 function ActivityScreen({
   user, myPosts, favCount, signOut, goAuth, refresh,
 }: {
   user: any; myPosts: Item[]; favCount: number; signOut: () => Promise<void>; goAuth: () => void; refresh: () => Promise<void>;
 }) {
-  const [profile, setProfile] = useState<{ display_name: string; area: string | null } | null>(null);
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [formName, setFormName] = useState("");
+  const [formDistrict, setFormDistrict] = useState("");
+  const [formShowPhone, setFormShowPhone] = useState(false);
 
-  useEffect(() => {
-    if (!user) {
-      setProfile(null);
-      return;
+  const loadProfile = useCallback(async () => {
+    if (!user) { setProfile(null); return; }
+    const { data } = await supabase
+      .from("profiles")
+      .select("display_name, area, district, points, items_given, items_received, show_phone")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (data) {
+      setProfile(data as ProfileRow);
+      setFormName(data.display_name ?? "");
+      setFormDistrict(data.district ?? "");
+      setFormShowPhone(!!data.show_phone);
+      // First-run setup if no district picked yet
+      if (!data.district) setEditing(true);
     }
-    supabase.from("profiles").select("display_name, area").eq("id", user.id).maybeSingle().then(({ data }) => {
-      if (data) setProfile(data as any);
-    });
   }, [user]);
+
+  useEffect(() => { loadProfile(); }, [loadProfile]);
 
   if (!user) {
     return (
@@ -679,7 +730,30 @@ function ActivityScreen({
     await refresh();
   };
 
+  const markCollected = async (id: string) => {
+    await supabase.from("posts").update({ status: "collected" }).eq("id", id);
+    await Promise.all([refresh(), loadProfile()]);
+  };
+
+  const saveProfile = async () => {
+    if (!formName.trim() || !formDistrict) return;
+    setSavingProfile(true);
+    await supabase.from("profiles").update({
+      display_name: formName.trim(),
+      district: formDistrict,
+      show_phone: formShowPhone,
+    }).eq("id", user.id);
+    setSavingProfile(false);
+    setEditing(false);
+    await loadProfile();
+  };
+
   const name = profile?.display_name ?? user.email?.split("@")[0] ?? "অর্পণ ব্যবহারকারী";
+  const points = profile?.points ?? 0;
+  const badge = badgeFor(points);
+  const next = nextBadge(points);
+  const activePosts = myPosts.filter((p) => p.cond !== "collected"); // visual list — status not in Item type, so show all
+  const collectedCount = profile?.items_given ?? 0;
 
   return (
     <div>
@@ -694,8 +768,8 @@ function ActivityScreen({
           </div>
           <div className="flex-1">
             <h1 className="text-white font-bold text-[18px] font-display">{name}</h1>
-            <div className="flex items-center gap-1 text-marigold-soft text-[13px]">
-              <Award size={14} /> সমাজ-বন্ধু · {profile?.area ?? "ঢাকা"}
+            <div className="flex items-center gap-1.5 text-marigold-soft text-[13px]">
+              <MapPin size={12} /> {profile?.district ?? "জেলা সেট করুন"}
             </div>
           </div>
           <button
@@ -707,33 +781,114 @@ function ActivityScreen({
             <LogOut size={16} />
           </button>
         </div>
+
+        <div className="mt-4 flex items-center gap-2">
+          <span className={`text-[12px] font-semibold rounded-full px-3 py-1 ${badge.color}`}>
+            <Award size={12} className="inline -mt-0.5 mr-1" />{badge.name}
+          </span>
+          <span className="text-[12px] text-white/85 font-display font-bold">{points} পয়েন্ট</span>
+        </div>
+        {next && (
+          <div className="mt-2">
+            <div className="text-[11px] text-white/80 mb-1">{next.name} পেতে আরও {next.min - points} পয়েন্ট</div>
+            <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-marigold"
+                style={{ width: `${Math.min(100, (points / next.min) * 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
       </div>
       <Stitch />
 
       <div className="px-4 pt-4">
         <div className="flex gap-3">
           <Stat big={String(myPosts.length)} label="পোস্ট" />
+          <Stat big={String(collectedCount)} label="দান সম্পন্ন" />
+          <Stat big={String(profile?.items_received ?? 0)} label="সংগ্রহ" />
           <Stat big={String(favCount)} label="পছন্দ" />
-          <Stat big={String(myPosts.length * 3)} label="অর্পণ পয়েন্ট" />
         </div>
+      </div>
 
-        <div className="mt-3 flex items-center gap-3 bg-marigold-soft rounded-2xl p-4">
-          <Sprout size={32} className="text-marigold shrink-0" />
-          <div className="flex-1">
-            <div className="font-bold text-[15px] text-ink">আপনার দান কারও আশীর্বাদ</div>
-            <div className="text-[12.5px] text-ink-soft">পোস্ট করতে থাকুন — সবাই মিলে কমিউনিটি গড়ি</div>
+      {/* Profile setup / edit card */}
+      <div className="px-4 pt-4">
+        {editing ? (
+          <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+            <div className="font-display font-semibold text-[15px] text-ink">
+              {profile?.district ? "প্রোফাইল সম্পাদনা" : "প্রোফাইল সম্পূর্ণ করুন"}
+            </div>
+            <div>
+              <div className="text-[12.5px] text-ink-soft mb-1">পুরো নাম</div>
+              <input
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                placeholder="আপনার নাম"
+                className="w-full h-11 rounded-xl border border-border bg-paper px-3 text-sm outline-none focus:border-leaf"
+              />
+            </div>
+            <div>
+              <div className="text-[12.5px] text-ink-soft mb-1">জেলা</div>
+              <select
+                value={formDistrict}
+                onChange={(e) => setFormDistrict(e.target.value)}
+                className="w-full h-11 rounded-xl border border-border bg-paper px-3 text-sm outline-none focus:border-leaf"
+              >
+                <option value="">— জেলা নির্বাচন করুন —</option>
+                {BD_DISTRICTS.map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+            <label className="flex items-center justify-between bg-paper rounded-xl px-3 py-2.5 border border-border">
+              <span className="text-[13px] text-ink">আমার ফোন নম্বর দেখাও</span>
+              <input
+                type="checkbox"
+                checked={formShowPhone}
+                onChange={(e) => setFormShowPhone(e.target.checked)}
+                className="w-4 h-4 accent-leaf"
+              />
+            </label>
+            <div className="flex gap-2">
+              <button
+                onClick={saveProfile}
+                disabled={savingProfile || !formName.trim() || !formDistrict}
+                className="flex-1 h-11 rounded-xl bg-leaf text-white font-bold text-sm disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {savingProfile && <Loader2 size={14} className="animate-spin" />} সংরক্ষণ
+              </button>
+              {profile?.district && (
+                <button
+                  onClick={() => setEditing(false)}
+                  className="px-4 h-11 rounded-xl border border-border text-ink-soft text-sm"
+                >
+                  বাতিল
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        ) : (
+          <button
+            onClick={() => setEditing(true)}
+            className="w-full text-left bg-marigold-soft rounded-2xl p-3 flex items-center gap-3"
+          >
+            <Sprout size={28} className="text-marigold shrink-0" />
+            <div className="flex-1">
+              <div className="font-bold text-[14px] text-ink">প্রোফাইল সম্পাদনা</div>
+              <div className="text-[12px] text-ink-soft">
+                নাম · জেলা · ফোন দেখানোর সেটিং
+              </div>
+            </div>
+          </button>
+        )}
       </div>
 
       <div className="px-4 pt-5">
         <div className="font-display font-semibold text-[16px] text-ink mb-2">আপনার পোস্ট</div>
-        {myPosts.length === 0 ? (
+        {activePosts.length === 0 ? (
           <div className="text-center py-6 text-ink-soft text-[13px] bg-card border border-border rounded-2xl">
             এখনো কোনো পোস্ট নেই। প্রথম জিনিসটি দিন!
           </div>
         ) : (
-          myPosts.map((h) => (
+          activePosts.map((h) => (
             <div key={h.id} className="flex items-center gap-3 mb-2.5 bg-card border border-border rounded-2xl p-2.5">
               <div className="flex items-center justify-center rounded-xl bg-paper" style={{ width: 44, height: 44, fontSize: 24 }}>
                 {h.emoji}
@@ -742,6 +897,14 @@ function ActivityScreen({
                 <div className="text-[14px] font-semibold text-ink truncate">{h.bn}</div>
                 <div className="text-[12px] text-ink-soft">{h.area} · {h.postedAgo}</div>
               </div>
+              <button
+                onClick={() => markCollected(String(h.id))}
+                className="text-leaf hover:bg-leaf-soft p-2 rounded-lg"
+                aria-label="Mark as collected"
+                title="সংগৃহীত হিসেবে চিহ্নিত করুন (+২০)"
+              >
+                <Check size={16} />
+              </button>
               <button
                 onClick={() => deletePost(String(h.id))}
                 className="text-ink-soft hover:text-marigold p-2"
@@ -762,9 +925,9 @@ function ActivityScreen({
 
 function Stat({ big, label }: { big: string; label: string }) {
   return (
-    <div className="flex-1 text-center bg-card border border-border rounded-2xl py-3">
-      <div className="font-display font-bold text-leaf" style={{ fontSize: 24 }}>{big}</div>
-      <div className="text-[11.5px] text-ink-soft mt-0.5">{label}</div>
+    <div className="flex-1 text-center bg-card border border-border rounded-2xl py-3 min-w-0">
+      <div className="font-display font-bold text-leaf" style={{ fontSize: 22 }}>{big}</div>
+      <div className="text-[11px] text-ink-soft mt-0.5 truncate">{label}</div>
     </div>
   );
 }
