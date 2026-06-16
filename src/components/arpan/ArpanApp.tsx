@@ -488,12 +488,18 @@ function DetailScreen({
 /* -------------------- POST -------------------- */
 
 function PostScreen({ user, goAuth, onDone }: { user: any; goAuth: () => void; onDone: () => void }) {
-  const [name, setName] = useState("");
+  const [nameBn, setNameBn] = useState("");
+  const [nameEn, setNameEn] = useState("");
+  const [district, setDistrict] = useState("");
+  const [upazila, setUpazila] = useState("");
   const [area, setArea] = useState("");
   const [desc, setDesc] = useState("");
   const [cat, setCat] = useState<string | null>(null);
   const [emoji, setEmoji] = useState("🎁");
   const [cond, setCond] = useState("ভালো");
+  const [photos, setPhotos] = useState<{ path: string; preview: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [locBusy, setLocBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -509,23 +515,101 @@ function PostScreen({ user, goAuth, onDone }: { user: any; goAuth: () => void; o
     );
   }
 
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setErr(null);
+    const slots = 3 - photos.length;
+    const picked = Array.from(files).slice(0, slots);
+    setUploading(true);
+    try {
+      const uploaded: { path: string; preview: string }[] = [];
+      for (const file of picked) {
+        if (file.size > 5 * 1024 * 1024) {
+          setErr("প্রতিটি ছবি ৫MB এর কম হতে হবে।");
+          continue;
+        }
+        const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+        const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+        const { error } = await supabase.storage.from("post-photos").upload(path, file, {
+          contentType: file.type || "image/jpeg",
+          upsert: false,
+        });
+        if (error) { setErr(error.message); continue; }
+        const { data: signed } = await supabase.storage.from("post-photos").createSignedUrl(path, 60 * 60);
+        uploaded.push({ path, preview: signed?.signedUrl ?? URL.createObjectURL(file) });
+      }
+      setPhotos((p) => [...p, ...uploaded].slice(0, 3));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removePhoto = async (idx: number) => {
+    const ph = photos[idx];
+    setPhotos((p) => p.filter((_, i) => i !== idx));
+    if (ph) await supabase.storage.from("post-photos").remove([ph.path]);
+  };
+
+  const detectLocation = () => {
+    if (!navigator.geolocation) {
+      setErr("আপনার ডিভাইসে GPS সমর্থন নেই।");
+      return;
+    }
+    setLocBusy(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords;
+          const r = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&accept-language=bn`,
+          );
+          const j = await r.json();
+          const addr = j.address ?? {};
+          const a = [addr.suburb, addr.neighbourhood, addr.road, addr.city_district, addr.city, addr.town, addr.village]
+            .filter(Boolean).slice(0, 2).join(", ");
+          if (a) setArea(a);
+          if (addr.state_district && !upazila) setUpazila(addr.state_district);
+          const d = addr.state || addr.city || addr.county;
+          if (d && BD_DISTRICTS.includes(d) && !district) setDistrict(d);
+        } catch {
+          setErr("ঠিকানা শনাক্ত করা যায়নি — হাতে লিখুন।");
+        } finally {
+          setLocBusy(false);
+        }
+      },
+      () => {
+        setLocBusy(false);
+        setErr("অবস্থান ব্যবহারের অনুমতি দিন বা হাতে লিখুন।");
+      },
+      { timeout: 10000 },
+    );
+  };
+
   const submit = async () => {
     setErr(null);
-    if (!name.trim() || !area.trim() || !cat) {
-      setErr("জিনিসের নাম, এলাকা ও ক্যাটাগরি দরকার।");
+    if (!nameBn.trim() || !cat) {
+      setErr("জিনিসের বাংলা নাম ও ক্যাটাগরি দরকার।");
+      return;
+    }
+    if (!district && !area.trim()) {
+      setErr("জেলা অথবা এলাকা দরকার।");
       return;
     }
     setBusy(true);
     const tile = TILES[Math.floor(Math.random() * TILES.length)];
+    const locParts = [area.trim(), upazila.trim(), district].filter(Boolean);
     const { error } = await supabase.from("posts").insert({
       user_id: user.id,
-      title_bn: name.trim(),
+      title_bn: nameBn.trim(),
+      title_en: nameEn.trim() || null,
       category: cat,
       emoji,
       tile,
-      area: area.trim(),
+      area: locParts.join(", ") || district,
+      upazila: upazila.trim() || null,
       condition: cond,
       note: desc.trim() || null,
+      photos: photos.map((p) => p.path),
     });
     setBusy(false);
     if (error) {
@@ -543,16 +627,51 @@ function PostScreen({ user, goAuth, onDone }: { user: any; goAuth: () => void; o
       </div>
       <Stitch />
       <div className="px-5 pt-4 flex flex-col gap-4">
-        <div className="flex items-center gap-3">
-          <button
-            className="flex items-center justify-center flex-col gap-2 rounded-2xl bg-marigold-soft transition-colors"
-            style={{ height: 110, width: 110, border: "2px dashed var(--color-marigold)" }}
-          >
-            <Camera size={22} className="text-marigold" />
-            <span className="text-[11px] text-marigold font-semibold">ছবি</span>
-          </button>
-          <div className="flex-1">
-            <div className="text-[13px] font-semibold text-ink mb-2">প্রতীক বেছে নিন</div>
+        {/* Photos */}
+        <div>
+          <div className="text-[13px] font-semibold text-ink mb-2">ছবি (সর্বোচ্চ ৩টি)</div>
+          <div className="flex gap-2">
+            {photos.map((p, i) => (
+              <div key={p.path} className="relative" style={{ width: 92, height: 92 }}>
+                <img src={p.preview} alt={`Photo ${i + 1}`} className="w-full h-full object-cover rounded-2xl border border-border" />
+                <button
+                  onClick={() => removePhoto(i)}
+                  className="absolute -top-1.5 -right-1.5 bg-marigold text-white rounded-full w-6 h-6 flex items-center justify-center shadow"
+                  aria-label="Remove"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            ))}
+            {photos.length < 3 && (
+              <label
+                className="flex flex-col items-center justify-center gap-1 rounded-2xl bg-marigold-soft cursor-pointer"
+                style={{ width: 92, height: 92, border: "2px dashed var(--color-marigold)" }}
+              >
+                {uploading ? (
+                  <Loader2 size={20} className="animate-spin text-marigold" />
+                ) : (
+                  <>
+                    <Camera size={20} className="text-marigold" />
+                    <span className="text-[11px] text-marigold font-semibold">যোগ করুন</span>
+                  </>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }}
+                />
+              </label>
+            )}
+          </div>
+        </div>
+
+        {/* Emoji fallback when no photo */}
+        {photos.length === 0 && (
+          <div>
+            <div className="text-[13px] font-semibold text-ink mb-2">প্রতীক বেছে নিন (ছবি না থাকলে)</div>
             <div className="flex gap-1.5 flex-wrap">
               {["🎁","🪑","🛏️","♿","📚","🧣","🧵","🧸","🪵","👕","🍼","🏠"].map((e) => (
                 <button
@@ -566,9 +685,10 @@ function PostScreen({ user, goAuth, onDone }: { user: any; goAuth: () => void; o
               ))}
             </div>
           </div>
-        </div>
+        )}
 
-        <Field label="জিনিসের নাম" ph="যেমন: হাসপাতালের বেড" val={name} set={setName} />
+        <Field label="জিনিসের নাম (বাংলা)" ph="যেমন: হাসপাতালের বেড" val={nameBn} set={setNameBn} />
+        <Field label="Item name (English)" ph="e.g. Hospital bed" val={nameEn} set={setNameEn} />
 
         <div>
           <div className="text-[13px] font-semibold text-ink mb-2">ক্যাটাগরি</div>
@@ -593,28 +713,67 @@ function PostScreen({ user, goAuth, onDone }: { user: any; goAuth: () => void; o
         <div>
           <div className="text-[13px] font-semibold text-ink mb-2">অবস্থা</div>
           <div className="flex gap-2 flex-wrap">
-            {["নতুনের মতো","ভালো","মোটামুটি","পুরনো কিন্তু সচল"].map((c) => (
+            {[
+              { v: "ভালো", l: "ভালো / Good" },
+              { v: "মোটামুটি", l: "মোটামুটি / Fair" },
+              { v: "পুরনো কিন্তু সচল", l: "পুরনো কিন্তু সচল / Old but Usable" },
+            ].map((c) => (
               <button
-                key={c}
-                onClick={() => setCond(c)}
+                key={c.v}
+                onClick={() => setCond(c.v)}
                 className={`text-[12.5px] px-3 py-1.5 rounded-full border ${
-                  cond === c ? "bg-marigold text-white border-marigold" : "bg-card text-ink border-border"
+                  cond === c.v ? "bg-marigold text-white border-marigold" : "bg-card text-ink border-border"
                 }`}
               >
-                {c}
+                {c.l}
               </button>
             ))}
           </div>
         </div>
 
-        <Field label="এলাকা" ph="যেমন: উত্তরা, ঢাকা" val={area} set={setArea} />
+        {/* Location */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[13px] font-semibold text-ink">অবস্থান</div>
+            <button
+              onClick={detectLocation}
+              disabled={locBusy}
+              className="text-[12px] text-leaf font-semibold flex items-center gap-1 disabled:opacity-60"
+            >
+              {locBusy ? <Loader2 size={12} className="animate-spin" /> : <MapPin size={12} />} GPS দিয়ে শনাক্ত
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              value={district}
+              onChange={(e) => setDistrict(e.target.value)}
+              className="h-11 rounded-xl border border-border bg-card px-2 text-sm outline-none focus:border-leaf"
+            >
+              <option value="">জেলা</option>
+              {BD_DISTRICTS.map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+            <input
+              value={upazila}
+              onChange={(e) => setUpazila(e.target.value)}
+              placeholder="উপজেলা / থানা"
+              className="h-11 rounded-xl border border-border bg-card px-3 text-sm outline-none focus:border-leaf placeholder:text-ink-soft"
+            />
+          </div>
+          <input
+            value={area}
+            onChange={(e) => setArea(e.target.value)}
+            placeholder="এলাকা / মহল্লা (যেমন: উত্তরা সেক্টর ৭)"
+            className="mt-2 w-full h-11 rounded-xl border border-border bg-card px-3 text-sm outline-none focus:border-leaf placeholder:text-ink-soft"
+          />
+        </div>
+
         <Field label="বিবরণ" ph="অবস্থা ও সংগ্রহের সময় লিখুন" val={desc} set={setDesc} area />
 
         {err && <div className="text-[12.5px] bg-marigold-soft text-marigold rounded-xl px-3 py-2">{err}</div>}
 
         <button
           onClick={submit}
-          disabled={busy}
+          disabled={busy || uploading}
           className="flex items-center justify-center gap-2 mt-1 bg-leaf text-white font-bold text-[15px] rounded-2xl shadow-leaf active:scale-[0.98] transition-transform disabled:opacity-60"
           style={{ height: 52 }}
         >
@@ -628,6 +787,8 @@ function PostScreen({ user, goAuth, onDone }: { user: any; goAuth: () => void; o
     </div>
   );
 }
+
+
 
 function Field({ label, ph, val, set, area }: { label: string; ph: string; val: string; set: (v: string) => void; area?: boolean }) {
   const base = "w-full rounded-2xl border border-border bg-card text-ink text-sm outline-none focus:border-leaf transition-colors px-3";
