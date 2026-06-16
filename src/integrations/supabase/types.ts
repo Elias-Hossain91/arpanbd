@@ -51,10 +51,12 @@ export type Database = {
           emoji: string
           id: string
           note: string | null
+          photos: string[]
           status: string
           tile: string
           title_bn: string
           title_en: string | null
+          upazila: string | null
           updated_at: string
           user_id: string
         }
@@ -68,10 +70,12 @@ export type Database = {
           emoji?: string
           id?: string
           note?: string | null
+          photos?: string[]
           status?: string
           tile?: string
           title_bn: string
           title_en?: string | null
+          upazila?: string | null
           updated_at?: string
           user_id: string
         }
@@ -85,10 +89,12 @@ export type Database = {
           emoji?: string
           id?: string
           note?: string | null
+          photos?: string[]
           status?: string
           tile?: string
           title_bn?: string
           title_en?: string | null
+          upazila?: string | null
           updated_at?: string
           user_id?: string
         }
