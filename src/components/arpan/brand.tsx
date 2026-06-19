@@ -1,16 +1,16 @@
-import logoAsset from "@/assets/arpan-logo.png.asset.json";
+import logoAsset from "@/assets/arpan-logo-transparent.png.asset.json";
 
 export function Stitch({ className = "" }: { className?: string }) {
   return <div className={`stitch-row w-full ${className}`} />;
 }
 
-export function Logo({ size = 22 }: { size?: number }) {
+export function Logo({ size = 24 }: { size?: number }) {
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex items-center gap-3">
       <img
         src={logoAsset.url}
         alt="অর্পণ logo"
-        style={{ height: size + 22, width: "auto" }}
+        style={{ height: size * 2.4, width: "auto" }}
         className="block select-none"
         draggable={false}
       />
@@ -23,7 +23,7 @@ export function Logo({ size = 22 }: { size?: number }) {
         </div>
         <div
           className="text-marigold font-semibold"
-          style={{ fontSize: 10, letterSpacing: 2.4, marginTop: 2 }}
+          style={{ fontSize: size * 0.42, letterSpacing: size * 0.1, marginTop: size * 0.08 }}
         >
           ARPAN
         </div>
