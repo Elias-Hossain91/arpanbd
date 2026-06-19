@@ -248,7 +248,7 @@ function HomeScreen({
 }) {
   return (
     <div>
-      <div className="bg-card" style={{ padding: "48px 18px 18px" }}>
+      <div className="bg-paper" style={{ padding: "48px 18px 18px" }}>
         <h1 className="sr-only">অর্পণ — মানুষের জন্য মানুষ</h1>
         <div className="flex items-center justify-between">
           <Logo />
