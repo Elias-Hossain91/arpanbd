@@ -6,13 +6,21 @@ export function Stitch({ className = "" }: { className?: string }) {
 
 export function Logo({ size = 56 }: { size?: number }) {
   return (
-    <img
-      src={logoAsset.url}
-      alt="অর্পণ — arpan · মানবতার দেয়াল · Community Giving Platform"
-      style={{ height: size, width: "auto" }}
-      className="block shrink-0 select-none"
-      draggable={false}
-    />
+    <div className="flex items-center gap-2 min-w-0">
+      <img
+        src={logoAsset.url}
+        alt="অর্পণ arpan logo"
+        style={{ height: size, width: "auto" }}
+        className="block shrink-0 select-none"
+        draggable={false}
+      />
+      <div className="flex flex-col leading-tight min-w-0">
+        <span className="font-bold text-ink text-lg truncate">অর্পণ</span>
+        <span className="text-[10px] font-semibold tracking-[0.2em] text-ink-soft truncate">
+          ARPAN
+        </span>
+      </div>
+    </div>
   );
 }
 
