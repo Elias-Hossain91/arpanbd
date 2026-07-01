@@ -1,34 +1,18 @@
-import logoAsset from "@/assets/arpan-logo-transparent.png.asset.json";
+import logoAsset from "@/assets/arpan-logo-full.png.asset.json";
 
 export function Stitch({ className = "" }: { className?: string }) {
   return <div className={`stitch-row w-full ${className}`} />;
 }
 
-export function Logo({ size = 22 }: { size?: number }) {
+export function Logo({ size = 56 }: { size?: number }) {
   return (
-    <div className="flex min-w-0 items-center gap-2">
-      <img
-        src={logoAsset.url}
-        alt="অর্পণ logo"
-        style={{ height: size * 1.9, width: "auto" }}
-        className="block shrink-0 select-none"
-        draggable={false}
-      />
-      <div className="min-w-0 leading-none">
-        <div
-          className="font-display text-leaf font-bold truncate"
-          style={{ fontSize: size }}
-        >
-          অর্পণ
-        </div>
-        <div
-          className="text-marigold font-semibold truncate"
-          style={{ fontSize: size * 0.42, letterSpacing: size * 0.1, marginTop: size * 0.08 }}
-        >
-          ARPAN
-        </div>
-      </div>
-    </div>
+    <img
+      src={logoAsset.url}
+      alt="অর্পণ — arpan · মানবতার দেয়াল · Community Giving Platform"
+      style={{ height: size, width: "auto" }}
+      className="block shrink-0 select-none"
+      draggable={false}
+    />
   );
 }
 
