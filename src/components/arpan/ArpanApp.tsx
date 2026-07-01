@@ -250,9 +250,10 @@ function HomeScreen({
     <div>
       <div className="bg-paper" style={{ padding: "48px 18px 18px" }}>
         <h1 className="sr-only">অর্পণ — মানুষের জন্য মানুষ</h1>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <Logo />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
+
             <button className="flex items-center gap-1 text-ink-soft text-[13px] bg-paper border border-border rounded-full px-2.5 py-1.5">
               <MapPin size={14} className="text-marigold" /> ঢাকা
             </button>
