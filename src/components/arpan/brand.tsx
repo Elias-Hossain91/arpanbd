@@ -4,25 +4,25 @@ export function Stitch({ className = "" }: { className?: string }) {
   return <div className={`stitch-row w-full ${className}`} />;
 }
 
-export function Logo({ size = 24 }: { size?: number }) {
+export function Logo({ size = 22 }: { size?: number }) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex min-w-0 items-center gap-2">
       <img
         src={logoAsset.url}
         alt="অর্পণ logo"
-        style={{ height: size * 2.4, width: "auto" }}
-        className="block select-none"
+        style={{ height: size * 1.9, width: "auto" }}
+        className="block shrink-0 select-none"
         draggable={false}
       />
-      <div className="leading-none">
+      <div className="min-w-0 leading-none">
         <div
-          className="font-display text-leaf font-bold"
+          className="font-display text-leaf font-bold truncate"
           style={{ fontSize: size }}
         >
           অর্পণ
         </div>
         <div
-          className="text-marigold font-semibold"
+          className="text-marigold font-semibold truncate"
           style={{ fontSize: size * 0.42, letterSpacing: size * 0.1, marginTop: size * 0.08 }}
         >
           ARPAN
