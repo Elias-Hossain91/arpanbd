@@ -10,7 +10,7 @@ import { Logo, Stitch, Tag } from "@/components/arpan/brand";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
-type Screen = "home" | "detail" | "post" | "activity";
+type Screen = "home" | "detail" | "post" | "activity" | "messages" | "notifications";
 
 type Item = ArpanItem & { _db?: boolean; _userId?: string };
 
@@ -138,73 +138,77 @@ export function ArpanApp() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 sm:p-6 bg-paper-deep paper-texture">
-      <div
-        className="relative overflow-hidden bg-paper shadow-leaf"
-        style={{ width: 390, height: 820, borderRadius: 48, border: "11px solid #1d1c18" }}
-      >
-        <div
-          className="absolute left-1/2 -translate-x-1/2 z-30 bg-[#1d1c18]"
-          style={{ top: 10, width: 132, height: 28, borderRadius: 20 }}
-        />
-
-        <div className="absolute inset-0 overflow-y-auto hide-scrollbar" style={{ paddingBottom: 84 }}>
-          {screen === "home" && (
-            <HomeScreen
-              list={list}
-              loading={loading || authLoading}
-              activeCat={activeCat}
-              setActiveCat={setActiveCat}
-              query={query}
-              setQuery={setQuery}
-              open={open}
-              user={user}
-              favorites={favorites}
-              toggleFavorite={toggleFavorite}
-              goAuth={() => navigate({ to: "/auth" })}
-            />
-          )}
-          {screen === "detail" && selected && (
-            <DetailScreen
-              item={selected}
-              back={() => setScreen("home")}
-              isFavorite={selected._db ? favorites.has(String(selected.id)) : false}
-              onToggleFav={() => toggleFavorite(selected)}
-              canFav={!!selected._db}
-            />
-          )}
-          {screen === "post" && (
-            <PostScreen
-              user={user}
-              goAuth={() => navigate({ to: "/auth" })}
-              onDone={async () => {
-                await loadPosts();
-                setScreen("activity");
-              }}
-            />
-          )}
-          {screen === "activity" && (
-            <ActivityScreen
-              user={user}
-              myPosts={dbItems.filter((i) => i._userId === user?.id)}
-              favCount={favorites.size}
-              signOut={signOut}
-              goAuth={() => navigate({ to: "/auth" })}
-              refresh={loadPosts}
-            />
-          )}
-        </div>
-
-        <div className="absolute bottom-0 left-0 right-0 z-20 bg-card border-t border-border">
-          <Stitch />
-          <div className="flex items-stretch justify-around" style={{ height: 68 }}>
-            <NavBtn icon={Home} label="হোম" active={screen === "home"} onClick={() => setScreen("home")} />
-            <NavBtn icon={ClipboardList} label="কার্যক্রম" active={screen === "activity"} onClick={() => setScreen("activity")} />
-            <PostBtn onClick={() => (user ? setScreen("post") : navigate({ to: "/auth" }))} />
-            <NavBtn icon={User} label="প্রোফাইল" active={false} onClick={() => (user ? setScreen("activity") : navigate({ to: "/auth" }))} />
-          </div>
-        </div>
+    <div className="min-h-screen w-full bg-paper paper-texture">
+      <div className="mx-auto w-full max-w-3xl min-h-screen bg-paper" style={{ paddingBottom: 88 }}>
+        {screen === "home" && (
+          <HomeScreen
+            list={list}
+            loading={loading || authLoading}
+            activeCat={activeCat}
+            setActiveCat={setActiveCat}
+            query={query}
+            setQuery={setQuery}
+            open={open}
+            user={user}
+            favorites={favorites}
+            toggleFavorite={toggleFavorite}
+            goAuth={() => navigate({ to: "/auth" })}
+          />
+        )}
+        {screen === "detail" && selected && (
+          <DetailScreen
+            item={selected}
+            back={() => setScreen("home")}
+            isFavorite={selected._db ? favorites.has(String(selected.id)) : false}
+            onToggleFav={() => toggleFavorite(selected)}
+            canFav={!!selected._db}
+          />
+        )}
+        {screen === "post" && (
+          <PostScreen
+            user={user}
+            goAuth={() => navigate({ to: "/auth" })}
+            onDone={async () => {
+              await loadPosts();
+              setScreen("activity");
+            }}
+          />
+        )}
+        {screen === "activity" && (
+          <ActivityScreen
+            user={user}
+            myPosts={dbItems.filter((i) => i._userId === user?.id)}
+            favCount={favorites.size}
+            signOut={signOut}
+            goAuth={() => navigate({ to: "/auth" })}
+            refresh={loadPosts}
+          />
+        )}
+        {screen === "messages" && <PlaceholderScreen title="বার্তা" subtitle="দাতার সাথে চ্যাট শীঘ্রই আসছে।" icon={MessageCircle} />}
+        {screen === "notifications" && <PlaceholderScreen title="নোটিস" subtitle="নতুন অনুরোধ ও আপডেট এখানে দেখাবে।" icon={Bell} />}
       </div>
+
+      <nav className="fixed bottom-0 left-0 right-0 z-30 bg-paper border-t border-border">
+        <div className="mx-auto w-full max-w-3xl relative flex items-stretch justify-around" style={{ height: 68 }}>
+          <NavBtn icon={Home} label="হোম" active={screen === "home"} onClick={() => setScreen("home")} />
+          <NavBtn icon={MessageCircle} label="বার্তা" active={screen === "messages"} onClick={() => (user ? setScreen("messages") : navigate({ to: "/auth" }))} />
+          <PostBtn onClick={() => (user ? setScreen("post") : navigate({ to: "/auth" }))} />
+          <NavBtn icon={Bell} label="নোটিস" active={screen === "notifications"} onClick={() => (user ? setScreen("notifications") : navigate({ to: "/auth" }))} />
+          <NavBtn icon={User} label="আমি" active={screen === "activity"} onClick={() => (user ? setScreen("activity") : navigate({ to: "/auth" }))} />
+        </div>
+      </nav>
+    </div>
+  );
+}
+
+function PlaceholderScreen({ title, subtitle, icon: Icon }: { title: string; subtitle: string; icon: any }) {
+  return (
+    <div className="px-6 pt-24 text-center flex flex-col items-center">
+      <div className="w-20 h-20 rounded-full bg-leaf-soft text-leaf flex items-center justify-center mb-4">
+        <Icon size={32} />
+      </div>
+      <h1 className="font-display font-bold text-[20px] text-leaf">{title}</h1>
+      <p className="text-[13.5px] text-ink-soft mt-1.5 max-w-xs">{subtitle}</p>
     </div>
   );
 }
@@ -213,7 +217,7 @@ function NavBtn({ icon: Icon, label, active, onClick }: { icon: any; label: stri
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center justify-center gap-1 flex-1 transition-colors ${
+      className={`flex flex-col items-center justify-center gap-0.5 flex-1 transition-colors ${
         active ? "text-leaf" : "text-ink-soft hover:text-ink"
       }`}
     >
@@ -225,15 +229,16 @@ function NavBtn({ icon: Icon, label, active, onClick }: { icon: any; label: stri
 
 function PostBtn({ onClick }: { onClick: () => void }) {
   return (
-    <button onClick={onClick} className="flex flex-col items-center justify-center flex-1 group">
-      <div
-        className="flex items-center justify-center rounded-full -mt-7 bg-marigold shadow-petal transition-transform group-active:scale-95"
-        style={{ width: 56, height: 56, border: "4px solid var(--color-paper)" }}
+    <div className="flex-1 flex items-start justify-center">
+      <button
+        onClick={onClick}
+        aria-label="নতুন পোস্ট"
+        className="flex items-center justify-center rounded-full bg-marigold shadow-petal transition-transform active:scale-95"
+        style={{ width: 58, height: 58, marginTop: -18, border: "4px solid var(--color-paper)" }}
       >
         <Plus size={28} color="#fff" strokeWidth={2.6} />
-      </div>
-      <span className="text-[11px] text-marigold font-semibold mt-1">দিন</span>
-    </button>
+      </button>
+    </div>
   );
 }
 
