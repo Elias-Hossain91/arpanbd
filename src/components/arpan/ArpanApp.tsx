@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
-  Search, MapPin, Heart, Plus, Home, ClipboardList, User,
+  Search, MapPin, Heart, Plus, Home, User,
   ChevronLeft, MessageCircle, ShieldCheck, Sprout, Camera, Award, Check, Bell,
   LogOut, Trash2, Loader2,
 } from "lucide-react";
