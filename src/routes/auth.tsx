@@ -4,13 +4,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { useAuth } from "@/hooks/useAuth";
 import { Logo, Stitch } from "@/components/arpan/brand";
-import { Mail, Lock, User as UserIcon, ChevronLeft, Loader2 } from "lucide-react";
+import { Mail, Lock, User as UserIcon, Phone, ChevronLeft, Loader2, KeyRound } from "lucide-react";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: "সাইন ইন · অর্পণ" },
-      { name: "description", content: "অর্পণে সাইন ইন বা সাইন আপ করুন — পছন্দের জিনিস সংরক্ষণ করুন এবং নিজের পোস্ট পরিচালনা করুন।" },
+      { name: "description", content: "অর্পণে সাইন ইন বা সাইন আপ করুন — পাসওয়ার্ড, ইমেইল OTP বা মোবাইল OTP দিয়ে।" },
       { property: "og:title", content: "সাইন ইন · অর্পণ" },
       { property: "og:description", content: "অর্পণে যোগ দিন — পছন্দ সংরক্ষণ করুন, নিজের পোস্ট পরিচালনা করুন।" },
       { property: "og:url", content: "https://arpanbd.lovable.app/auth" },
@@ -21,31 +21,49 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
+type Method = "password" | "email-otp" | "phone-otp";
+
 function AuthPage() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const [method, setMethod] = useState<Method>("password");
   const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
+
+  // shared
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+
+  // password fields
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+
+  // otp fields
+  const [otpTarget, setOtpTarget] = useState(""); // email or phone
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
 
   useEffect(() => {
     if (user && !authLoading) navigate({ to: "/" });
   }, [user, authLoading, navigate]);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Reset otp state when switching method
+  useEffect(() => {
+    setOtpSent(false);
+    setOtpCode("");
+    setOtpTarget("");
     setError(null);
     setInfo(null);
-    setBusy(true);
+  }, [method, mode]);
+
+  const submitPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null); setInfo(null); setBusy(true);
     try {
       if (mode === "signup") {
         const { error } = await supabase.auth.signUp({
-          email,
-          password,
+          email, password,
           options: {
             emailRedirectTo: window.location.origin,
             data: { display_name: name || email.split("@")[0] },
@@ -64,9 +82,74 @@ function AuthPage() {
     }
   };
 
+  const sendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null); setInfo(null); setBusy(true);
+    try {
+      if (method === "email-otp") {
+        if (!otpTarget.includes("@")) throw new Error("সঠিক ইমেইল দিন।");
+        const { error } = await supabase.auth.signInWithOtp({
+          email: otpTarget,
+          options: {
+            shouldCreateUser: mode === "signup",
+            emailRedirectTo: window.location.origin,
+            data: { display_name: name || otpTarget.split("@")[0] },
+          },
+        });
+        if (error) throw error;
+        setInfo(`${otpTarget} এ ৬-সংখ্যার কোড পাঠানো হয়েছে।`);
+        setOtpSent(true);
+      } else {
+        // phone-otp — expect E.164 (+880…)
+        const phone = otpTarget.trim().replace(/\s+/g, "");
+        if (!/^\+\d{8,15}$/.test(phone)) throw new Error("দেশের কোডসহ ফোন নম্বর দিন (যেমন +8801XXXXXXXXX)।");
+        const { error } = await supabase.auth.signInWithOtp({
+          phone,
+          options: {
+            shouldCreateUser: mode === "signup",
+            data: { display_name: name || phone },
+          },
+        });
+        if (error) throw error;
+        setInfo(`${phone} নম্বরে SMS কোড পাঠানো হয়েছে।`);
+        setOtpSent(true);
+      }
+    } catch (err: any) {
+      setError(err?.message ?? "কোড পাঠানো যায়নি।");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null); setBusy(true);
+    try {
+      if (method === "email-otp") {
+        const { error } = await supabase.auth.verifyOtp({
+          email: otpTarget,
+          token: otpCode.trim(),
+          type: "email",
+        });
+        if (error) throw error;
+      } else {
+        const phone = otpTarget.trim().replace(/\s+/g, "");
+        const { error } = await supabase.auth.verifyOtp({
+          phone,
+          token: otpCode.trim(),
+          type: "sms",
+        });
+        if (error) throw error;
+      }
+    } catch (err: any) {
+      setError(err?.message ?? "কোড মিলছে না।");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const google = async () => {
-    setError(null);
-    setBusy(true);
+    setError(null); setBusy(true);
     const result = await lovable.auth.signInWithOAuth("google", {
       redirect_uri: window.location.origin,
     });
@@ -77,139 +160,182 @@ function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 sm:p-6 bg-paper-deep paper-texture">
-      <div
-        className="relative overflow-hidden bg-paper shadow-leaf"
-        style={{ width: 390, height: 820, borderRadius: 48, border: "11px solid #1d1c18" }}
-      >
-        <div
-          className="absolute left-1/2 -translate-x-1/2 z-30 bg-[#1d1c18]"
-          style={{ top: 10, width: 132, height: 28, borderRadius: 20 }}
-        />
-        <div className="absolute inset-0 overflow-y-auto hide-scrollbar">
-          <div className="bg-card" style={{ padding: "48px 18px 16px" }}>
-            <Link
-              to="/"
-              className="flex items-center gap-1 mb-3 text-ink-soft text-sm w-fit"
-            >
-              <ChevronLeft size={16} /> ফিরে যান
-            </Link>
-            <div className="flex justify-center">
-              <Logo size={26} />
-            </div>
-            <div className="text-center mt-3 font-display text-leaf font-bold text-[18px]">
-              {mode === "signin" ? "আবার স্বাগতম" : "অর্পণে যোগ দিন"}
-            </div>
-            <div className="text-center text-[12.5px] text-ink-soft mt-1">
-              {mode === "signin"
-                ? "পছন্দ ও নিজের পোস্ট পরিচালনা করতে সাইন ইন করুন"
-                : "একটি অ্যাকাউন্ট খুলুন — মুহূর্তেই দিন বা নিন"}
-            </div>
+    <div className="min-h-screen w-full bg-paper-deep paper-texture flex items-center justify-center p-4 sm:p-6">
+      <div className="w-full max-w-md bg-paper rounded-3xl shadow-leaf overflow-hidden border border-border">
+        <div className="bg-card px-6 pt-6 pb-5">
+          <Link to="/" className="flex items-center gap-1 mb-3 text-ink-soft text-sm w-fit">
+            <ChevronLeft size={16} /> ফিরে যান
+          </Link>
+          <div className="flex justify-center">
+            <Logo size={36} />
           </div>
-          <Stitch />
+          <h1 className="text-center mt-3 font-display text-leaf font-bold text-[20px]">
+            {mode === "signin" ? "আবার স্বাগতম" : "অর্পণে যোগ দিন"}
+          </h1>
+          <div className="text-center text-[13px] text-ink-soft mt-1">
+            {mode === "signin" ? "পছন্দ ও নিজের পোস্ট পরিচালনা করতে সাইন ইন" : "একটি অ্যাকাউন্ট খুলুন — মুহূর্তেই দিন বা নিন"}
+          </div>
+        </div>
+        <Stitch />
 
-          <form onSubmit={submit} className="px-5 pt-5 flex flex-col gap-3">
-            {mode === "signup" && (
-              <FieldRow icon={UserIcon}>
-                <input
-                  className="bg-transparent outline-none flex-1 text-sm"
-                  placeholder="আপনার নাম"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </FieldRow>
-            )}
-            <FieldRow icon={Mail}>
-              <input
-                type="email"
-                required
-                className="bg-transparent outline-none flex-1 text-sm"
-                placeholder="ইমেইল"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </FieldRow>
-            <FieldRow icon={Lock}>
-              <input
-                type="password"
-                required
-                minLength={6}
-                className="bg-transparent outline-none flex-1 text-sm"
-                placeholder="পাসওয়ার্ড (৬+ অক্ষর)"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </FieldRow>
+        {/* Method tabs */}
+        <div className="px-4 pt-4">
+          <div className="grid grid-cols-3 gap-1 bg-card border border-border rounded-2xl p-1 text-[12px] font-semibold">
+            <TabBtn active={method === "password"} onClick={() => setMethod("password")}>পাসওয়ার্ড</TabBtn>
+            <TabBtn active={method === "email-otp"} onClick={() => setMethod("email-otp")}>ইমেইল OTP</TabBtn>
+            <TabBtn active={method === "phone-otp"} onClick={() => setMethod("phone-otp")}>মোবাইল OTP</TabBtn>
+          </div>
+        </div>
 
-            {error && (
-              <div className="text-[12.5px] bg-marigold-soft text-marigold rounded-xl px-3 py-2">
-                {error}
-              </div>
-            )}
-            {info && (
-              <div className="text-[12.5px] bg-leaf-soft text-leaf rounded-xl px-3 py-2">
-                {info}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={busy}
-              className="mt-1 flex items-center justify-center gap-2 bg-leaf text-white font-bold text-[15px] rounded-2xl shadow-leaf active:scale-[0.98] transition-transform disabled:opacity-60"
-              style={{ height: 50 }}
-            >
-              {busy && <Loader2 size={16} className="animate-spin" />}
-              {mode === "signin" ? "সাইন ইন" : "অ্যাকাউন্ট খুলুন"}
-            </button>
-
-            <div className="flex items-center gap-3 my-1">
-              <div className="flex-1 h-px bg-border" />
-              <span className="text-[11px] text-ink-soft">অথবা</span>
-              <div className="flex-1 h-px bg-border" />
-            </div>
-
-            <button
-              type="button"
-              onClick={google}
-              disabled={busy}
-              className="flex items-center justify-center gap-2 bg-card border border-border text-ink font-semibold text-[14px] rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-60"
-              style={{ height: 48 }}
-            >
-              <GoogleIcon /> Google দিয়ে চালিয়ে যান
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setMode(mode === "signin" ? "signup" : "signin");
-                setError(null);
-              }}
-              className="text-center text-[13px] text-ink-soft mt-2"
-            >
-              {mode === "signin" ? (
-                <>নতুন এখানে? <span className="text-leaf font-semibold">অ্যাকাউন্ট খুলুন</span></>
-              ) : (
-                <>ইতিমধ্যে অ্যাকাউন্ট আছে? <span className="text-leaf font-semibold">সাইন ইন</span></>
+        <div className="px-5 pt-4 pb-6 flex flex-col gap-3">
+          {method === "password" && (
+            <form onSubmit={submitPassword} className="flex flex-col gap-3">
+              {mode === "signup" && (
+                <FieldRow icon={UserIcon}>
+                  <input className="bg-transparent outline-none flex-1 text-sm" placeholder="আপনার নাম"
+                    value={name} onChange={(e) => setName(e.target.value)} />
+                </FieldRow>
               )}
-            </button>
+              <FieldRow icon={Mail}>
+                <input type="email" required className="bg-transparent outline-none flex-1 text-sm"
+                  placeholder="ইমেইল" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </FieldRow>
+              <FieldRow icon={Lock}>
+                <input type="password" required minLength={6} className="bg-transparent outline-none flex-1 text-sm"
+                  placeholder="পাসওয়ার্ড (৬+ অক্ষর)" value={password} onChange={(e) => setPassword(e.target.value)} />
+              </FieldRow>
+              <Alerts error={error} info={info} />
+              <PrimaryBtn busy={busy}>{mode === "signin" ? "সাইন ইন" : "অ্যাকাউন্ট খুলুন"}</PrimaryBtn>
+            </form>
+          )}
 
-            <p className="text-center text-[11px] text-ink-soft mt-2 pb-6 leading-[1.6]">
-              চালিয়ে যাওয়া মানে আপনি অর্পণের নীতিমালা মেনে নিচ্ছেন — কোনো অর্থ লেনদেন নয়, শুধুই ভালোবাসা।
-            </p>
-          </form>
+          {(method === "email-otp" || method === "phone-otp") && (
+            <form onSubmit={otpSent ? verifyOtp : sendOtp} className="flex flex-col gap-3">
+              {mode === "signup" && !otpSent && (
+                <FieldRow icon={UserIcon}>
+                  <input className="bg-transparent outline-none flex-1 text-sm" placeholder="আপনার নাম"
+                    value={name} onChange={(e) => setName(e.target.value)} />
+                </FieldRow>
+              )}
+              {!otpSent ? (
+                <FieldRow icon={method === "email-otp" ? Mail : Phone}>
+                  <input
+                    type={method === "email-otp" ? "email" : "tel"}
+                    required
+                    className="bg-transparent outline-none flex-1 text-sm"
+                    placeholder={method === "email-otp" ? "ইমেইল" : "মোবাইল (+8801XXXXXXXXX)"}
+                    value={otpTarget}
+                    onChange={(e) => setOtpTarget(e.target.value)}
+                  />
+                </FieldRow>
+              ) : (
+                <>
+                  <div className="text-[12.5px] text-ink-soft text-center">
+                    কোড পাঠানো হয়েছে <span className="text-ink font-semibold">{otpTarget}</span> এ
+                  </div>
+                  <FieldRow icon={KeyRound}>
+                    <input
+                      inputMode="numeric"
+                      pattern="\d*"
+                      maxLength={6}
+                      required
+                      className="bg-transparent outline-none flex-1 text-sm tracking-[0.4em] text-center"
+                      placeholder="৬-সংখ্যার কোড"
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                    />
+                  </FieldRow>
+                </>
+              )}
+              <Alerts error={error} info={info} />
+              <PrimaryBtn busy={busy}>
+                {otpSent ? "কোড যাচাই করে সাইন ইন" : "OTP পাঠান"}
+              </PrimaryBtn>
+              {otpSent && (
+                <button
+                  type="button"
+                  onClick={() => { setOtpSent(false); setOtpCode(""); setInfo(null); setError(null); }}
+                  className="text-[12.5px] text-leaf font-semibold text-center"
+                >
+                  ← ভিন্ন {method === "email-otp" ? "ইমেইল" : "নম্বর"} ব্যবহার করুন
+                </button>
+              )}
+            </form>
+          )}
+
+          <div className="flex items-center gap-3 my-1">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-[11px] text-ink-soft">অথবা</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          <button
+            type="button"
+            onClick={google}
+            disabled={busy}
+            className="flex items-center justify-center gap-2 bg-card border border-border text-ink font-semibold text-[14px] rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-60"
+            style={{ height: 48 }}
+          >
+            <GoogleIcon /> Google দিয়ে চালিয়ে যান
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(null); }}
+            className="text-center text-[13px] text-ink-soft mt-1"
+          >
+            {mode === "signin" ? (
+              <>নতুন এখানে? <span className="text-leaf font-semibold">অ্যাকাউন্ট খুলুন</span></>
+            ) : (
+              <>ইতিমধ্যে অ্যাকাউন্ট আছে? <span className="text-leaf font-semibold">সাইন ইন</span></>
+            )}
+          </button>
+
+          <p className="text-center text-[11px] text-ink-soft mt-1 leading-[1.6]">
+            চালিয়ে যাওয়া মানে আপনি অর্পণের নীতিমালা মেনে নিচ্ছেন — কোনো অর্থ লেনদেন নয়, শুধুই ভালোবাসা।
+          </p>
         </div>
       </div>
     </div>
   );
 }
 
-function FieldRow({
-  icon: Icon,
-  children,
-}: {
-  icon: any;
-  children: React.ReactNode;
-}) {
+function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`h-9 rounded-xl transition-all ${active ? "bg-leaf text-white shadow-leaf" : "text-ink-soft hover:text-ink"}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Alerts({ error, info }: { error: string | null; info: string | null }) {
+  return (
+    <>
+      {error && <div className="text-[12.5px] bg-marigold-soft text-marigold rounded-xl px-3 py-2">{error}</div>}
+      {info && <div className="text-[12.5px] bg-leaf-soft text-leaf rounded-xl px-3 py-2">{info}</div>}
+    </>
+  );
+}
+
+function PrimaryBtn({ busy, children }: { busy: boolean; children: React.ReactNode }) {
+  return (
+    <button
+      type="submit"
+      disabled={busy}
+      className="mt-1 flex items-center justify-center gap-2 bg-leaf text-white font-bold text-[15px] rounded-2xl shadow-leaf active:scale-[0.98] transition-transform disabled:opacity-60"
+      style={{ height: 50 }}
+    >
+      {busy && <Loader2 size={16} className="animate-spin" />}
+      {children}
+    </button>
+  );
+}
+
+function FieldRow({ icon: Icon, children }: { icon: any; children: React.ReactNode }) {
   return (
     <label className="flex items-center gap-2 px-3 bg-card rounded-2xl h-12 border border-border focus-within:border-leaf transition-colors">
       <Icon size={16} className="text-ink-soft" />
