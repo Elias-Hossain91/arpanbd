@@ -109,6 +109,7 @@ function AuthPage() {
       if (error) throw error;
       setInfo(`${p} নম্বরে SMS কোড পাঠানো হয়েছে।`);
       setOtpSent(true);
+      setResendIn(45);
     } catch (err: any) {
       setError(err?.message ?? "কোড পাঠানো যায়নি।");
     } finally {
