@@ -46,6 +46,7 @@ function AuthPage() {
 
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState("");
+  const [resendIn, setResendIn] = useState(0);
 
   useEffect(() => {
     if (user && !authLoading) navigate({ to: "/" });
@@ -54,9 +55,16 @@ function AuthPage() {
   useEffect(() => {
     setOtpSent(false);
     setOtpCode("");
+    setResendIn(0);
     setError(null);
     setInfo(null);
   }, [useOtp, mode]);
+
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = setInterval(() => setResendIn((s) => (s <= 1 ? 0 : s - 1)), 1000);
+    return () => clearInterval(t);
+  }, [resendIn]);
 
   const submitPassword = async (e: React.FormEvent) => {
     e.preventDefault();
