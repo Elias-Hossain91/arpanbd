@@ -210,6 +210,16 @@ function AuthPage() {
                       placeholder="৬-সংখ্যার কোড" value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))} />
                   </FieldRow>
+                  <button
+                    type="button"
+                    disabled={resendIn > 0 || busy}
+                    onClick={() => sendOtp({ preventDefault: () => {} } as React.FormEvent)}
+                    className="text-[12.5px] text-center text-leaf font-semibold disabled:text-ink-soft disabled:cursor-not-allowed"
+                  >
+                    {resendIn > 0
+                      ? `আবার কোড পাঠান (${resendIn}s)`
+                      : "আবার কোড পাঠান"}
+                  </button>
                 </>
               )}
               <Alerts error={error} info={info} />
