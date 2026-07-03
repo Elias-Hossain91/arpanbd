@@ -4,15 +4,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { useAuth } from "@/hooks/useAuth";
 import { Logo, Stitch } from "@/components/arpan/brand";
-import { Mail, Lock, User as UserIcon, Phone, ChevronLeft, Loader2, KeyRound } from "lucide-react";
+import { Lock, User as UserIcon, Phone, ChevronLeft, Loader2, KeyRound } from "lucide-react";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: "সাইন ইন · অর্পণ" },
-      { name: "description", content: "অর্পণে সাইন ইন বা সাইন আপ করুন — পাসওয়ার্ড, ইমেইল OTP বা মোবাইল OTP দিয়ে।" },
+      { name: "description", content: "অর্পণে মোবাইল নম্বর দিয়ে সাইন ইন — পাসওয়ার্ড বা OTP দিয়ে।" },
       { property: "og:title", content: "সাইন ইন · অর্পণ" },
-      { property: "og:description", content: "অর্পণে যোগ দিন — পছন্দ সংরক্ষণ করুন, নিজের পোস্ট পরিচালনা করুন।" },
+      { property: "og:description", content: "মোবাইল নম্বরে পাসওয়ার্ড বা OTP দিয়ে অর্পণে যোগ দিন।" },
       { property: "og:url", content: "https://arpanbd.lovable.app/auth" },
       { name: "robots", content: "noindex" },
     ],
@@ -21,26 +21,29 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
-type Method = "password" | "email-otp" | "phone-otp";
+function normalizePhone(raw: string): string {
+  const p = raw.trim().replace(/\s+/g, "").replace(/[-()]/g, "");
+  if (/^\+\d{8,15}$/.test(p)) return p;
+  // Bangladeshi 01XXXXXXXXX -> +8801XXXXXXXXX
+  if (/^01\d{9}$/.test(p)) return "+88" + p;
+  if (/^8801\d{9}$/.test(p)) return "+" + p;
+  return p;
+}
 
 function AuthPage() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
-  const [method, setMethod] = useState<Method>("password");
   const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [useOtp, setUseOtp] = useState(false);
 
-  // shared
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  // password fields
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
 
-  // otp fields
-  const [otpTarget, setOtpTarget] = useState(""); // email or phone
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState("");
 
@@ -48,31 +51,30 @@ function AuthPage() {
     if (user && !authLoading) navigate({ to: "/" });
   }, [user, authLoading, navigate]);
 
-  // Reset otp state when switching method
   useEffect(() => {
     setOtpSent(false);
     setOtpCode("");
-    setOtpTarget("");
     setError(null);
     setInfo(null);
-  }, [method, mode]);
+  }, [useOtp, mode]);
 
   const submitPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null); setInfo(null); setBusy(true);
     try {
+      const p = normalizePhone(phone);
+      if (!/^\+\d{8,15}$/.test(p)) throw new Error("সঠিক মোবাইল নম্বর দিন (যেমন 01XXXXXXXXX)।");
       if (mode === "signup") {
         const { error } = await supabase.auth.signUp({
-          email, password,
-          options: {
-            emailRedirectTo: window.location.origin,
-            data: { display_name: name || email.split("@")[0] },
-          },
+          phone: p, password,
+          options: { data: { display_name: name || p } },
         });
         if (error) throw error;
-        setInfo("স্বাগতম! আপনি লগ ইন হয়ে গেছেন।");
+        setInfo("অ্যাকাউন্ট তৈরি হয়েছে। মোবাইল নম্বর যাচাই করতে OTP পাঠানো হয়েছে।");
+        setUseOtp(true);
+        setOtpSent(true);
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({ phone: p, password });
         if (error) throw error;
       }
     } catch (err: any) {
@@ -86,34 +88,18 @@ function AuthPage() {
     e.preventDefault();
     setError(null); setInfo(null); setBusy(true);
     try {
-      if (method === "email-otp") {
-        if (!otpTarget.includes("@")) throw new Error("সঠিক ইমেইল দিন।");
-        const { error } = await supabase.auth.signInWithOtp({
-          email: otpTarget,
-          options: {
-            shouldCreateUser: mode === "signup",
-            emailRedirectTo: window.location.origin,
-            data: { display_name: name || otpTarget.split("@")[0] },
-          },
-        });
-        if (error) throw error;
-        setInfo(`${otpTarget} এ ৬-সংখ্যার কোড পাঠানো হয়েছে।`);
-        setOtpSent(true);
-      } else {
-        // phone-otp — expect E.164 (+880…)
-        const phone = otpTarget.trim().replace(/\s+/g, "");
-        if (!/^\+\d{8,15}$/.test(phone)) throw new Error("দেশের কোডসহ ফোন নম্বর দিন (যেমন +8801XXXXXXXXX)।");
-        const { error } = await supabase.auth.signInWithOtp({
-          phone,
-          options: {
-            shouldCreateUser: mode === "signup",
-            data: { display_name: name || phone },
-          },
-        });
-        if (error) throw error;
-        setInfo(`${phone} নম্বরে SMS কোড পাঠানো হয়েছে।`);
-        setOtpSent(true);
-      }
+      const p = normalizePhone(phone);
+      if (!/^\+\d{8,15}$/.test(p)) throw new Error("সঠিক মোবাইল নম্বর দিন (যেমন 01XXXXXXXXX)।");
+      const { error } = await supabase.auth.signInWithOtp({
+        phone: p,
+        options: {
+          shouldCreateUser: mode === "signup",
+          data: { display_name: name || p },
+        },
+      });
+      if (error) throw error;
+      setInfo(`${p} নম্বরে SMS কোড পাঠানো হয়েছে।`);
+      setOtpSent(true);
     } catch (err: any) {
       setError(err?.message ?? "কোড পাঠানো যায়নি।");
     } finally {
@@ -125,22 +111,11 @@ function AuthPage() {
     e.preventDefault();
     setError(null); setBusy(true);
     try {
-      if (method === "email-otp") {
-        const { error } = await supabase.auth.verifyOtp({
-          email: otpTarget,
-          token: otpCode.trim(),
-          type: "email",
-        });
-        if (error) throw error;
-      } else {
-        const phone = otpTarget.trim().replace(/\s+/g, "");
-        const { error } = await supabase.auth.verifyOtp({
-          phone,
-          token: otpCode.trim(),
-          type: "sms",
-        });
-        if (error) throw error;
-      }
+      const p = normalizePhone(phone);
+      const { error } = await supabase.auth.verifyOtp({
+        phone: p, token: otpCode.trim(), type: "sms",
+      });
+      if (error) throw error;
     } catch (err: any) {
       setError(err?.message ?? "কোড মিলছে না।");
     } finally {
@@ -173,22 +148,13 @@ function AuthPage() {
             {mode === "signin" ? "আবার স্বাগতম" : "অর্পণে যোগ দিন"}
           </h1>
           <div className="text-center text-[13px] text-ink-soft mt-1">
-            {mode === "signin" ? "পছন্দ ও নিজের পোস্ট পরিচালনা করতে সাইন ইন" : "একটি অ্যাকাউন্ট খুলুন — মুহূর্তেই দিন বা নিন"}
+            মোবাইল নম্বর দিয়ে {useOtp ? "OTP" : "পাসওয়ার্ড"} দিয়ে {mode === "signin" ? "সাইন ইন" : "সাইন আপ"}
           </div>
         </div>
         <Stitch />
 
-        {/* Method tabs */}
-        <div className="px-4 pt-4">
-          <div className="grid grid-cols-3 gap-1 bg-card border border-border rounded-2xl p-1 text-[12px] font-semibold">
-            <TabBtn active={method === "password"} onClick={() => setMethod("password")}>পাসওয়ার্ড</TabBtn>
-            <TabBtn active={method === "email-otp"} onClick={() => setMethod("email-otp")}>ইমেইল OTP</TabBtn>
-            <TabBtn active={method === "phone-otp"} onClick={() => setMethod("phone-otp")}>মোবাইল OTP</TabBtn>
-          </div>
-        </div>
-
-        <div className="px-5 pt-4 pb-6 flex flex-col gap-3">
-          {method === "password" && (
+        <div className="px-5 pt-5 pb-6 flex flex-col gap-3">
+          {!useOtp ? (
             <form onSubmit={submitPassword} className="flex flex-col gap-3">
               {mode === "signup" && (
                 <FieldRow icon={UserIcon}>
@@ -196,9 +162,9 @@ function AuthPage() {
                     value={name} onChange={(e) => setName(e.target.value)} />
                 </FieldRow>
               )}
-              <FieldRow icon={Mail}>
-                <input type="email" required className="bg-transparent outline-none flex-1 text-sm"
-                  placeholder="ইমেইল" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <FieldRow icon={Phone}>
+                <input type="tel" required className="bg-transparent outline-none flex-1 text-sm"
+                  placeholder="মোবাইল নম্বর (01XXXXXXXXX)" value={phone} onChange={(e) => setPhone(e.target.value)} />
               </FieldRow>
               <FieldRow icon={Lock}>
                 <input type="password" required minLength={6} className="bg-transparent outline-none flex-1 text-sm"
@@ -206,10 +172,11 @@ function AuthPage() {
               </FieldRow>
               <Alerts error={error} info={info} />
               <PrimaryBtn busy={busy}>{mode === "signin" ? "সাইন ইন" : "অ্যাকাউন্ট খুলুন"}</PrimaryBtn>
+              <button type="button" onClick={() => setUseOtp(true)} className="text-[12.5px] text-leaf font-semibold text-center">
+                পাসওয়ার্ড ছাড়া OTP দিয়ে সাইন ইন করুন →
+              </button>
             </form>
-          )}
-
-          {(method === "email-otp" || method === "phone-otp") && (
+          ) : (
             <form onSubmit={otpSent ? verifyOtp : sendOtp} className="flex flex-col gap-3">
               {mode === "signup" && !otpSent && (
                 <FieldRow icon={UserIcon}>
@@ -218,48 +185,28 @@ function AuthPage() {
                 </FieldRow>
               )}
               {!otpSent ? (
-                <FieldRow icon={method === "email-otp" ? Mail : Phone}>
-                  <input
-                    type={method === "email-otp" ? "email" : "tel"}
-                    required
-                    className="bg-transparent outline-none flex-1 text-sm"
-                    placeholder={method === "email-otp" ? "ইমেইল" : "মোবাইল (+8801XXXXXXXXX)"}
-                    value={otpTarget}
-                    onChange={(e) => setOtpTarget(e.target.value)}
-                  />
+                <FieldRow icon={Phone}>
+                  <input type="tel" required className="bg-transparent outline-none flex-1 text-sm"
+                    placeholder="মোবাইল নম্বর (01XXXXXXXXX)" value={phone} onChange={(e) => setPhone(e.target.value)} />
                 </FieldRow>
               ) : (
                 <>
                   <div className="text-[12.5px] text-ink-soft text-center">
-                    কোড পাঠানো হয়েছে <span className="text-ink font-semibold">{otpTarget}</span> এ
+                    কোড পাঠানো হয়েছে <span className="text-ink font-semibold">{normalizePhone(phone)}</span> এ
                   </div>
                   <FieldRow icon={KeyRound}>
-                    <input
-                      inputMode="numeric"
-                      pattern="\d*"
-                      maxLength={6}
-                      required
+                    <input inputMode="numeric" pattern="\d*" maxLength={6} required
                       className="bg-transparent outline-none flex-1 text-sm tracking-[0.4em] text-center"
-                      placeholder="৬-সংখ্যার কোড"
-                      value={otpCode}
-                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                    />
+                      placeholder="৬-সংখ্যার কোড" value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))} />
                   </FieldRow>
                 </>
               )}
               <Alerts error={error} info={info} />
-              <PrimaryBtn busy={busy}>
-                {otpSent ? "কোড যাচাই করে সাইন ইন" : "OTP পাঠান"}
-              </PrimaryBtn>
-              {otpSent && (
-                <button
-                  type="button"
-                  onClick={() => { setOtpSent(false); setOtpCode(""); setInfo(null); setError(null); }}
-                  className="text-[12.5px] text-leaf font-semibold text-center"
-                >
-                  ← ভিন্ন {method === "email-otp" ? "ইমেইল" : "নম্বর"} ব্যবহার করুন
-                </button>
-              )}
+              <PrimaryBtn busy={busy}>{otpSent ? "কোড যাচাই করুন" : "OTP পাঠান"}</PrimaryBtn>
+              <button type="button" onClick={() => { setUseOtp(false); setOtpSent(false); }} className="text-[12.5px] text-leaf font-semibold text-center">
+                ← পাসওয়ার্ড দিয়ে সাইন ইন করুন
+              </button>
             </form>
           )}
 
@@ -269,21 +216,15 @@ function AuthPage() {
             <div className="flex-1 h-px bg-border" />
           </div>
 
-          <button
-            type="button"
-            onClick={google}
-            disabled={busy}
+          <button type="button" onClick={google} disabled={busy}
             className="flex items-center justify-center gap-2 bg-card border border-border text-ink font-semibold text-[14px] rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-60"
-            style={{ height: 48 }}
-          >
+            style={{ height: 48 }}>
             <GoogleIcon /> Google দিয়ে চালিয়ে যান
           </button>
 
-          <button
-            type="button"
+          <button type="button"
             onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(null); }}
-            className="text-center text-[13px] text-ink-soft mt-1"
-          >
+            className="text-center text-[13px] text-ink-soft mt-1">
             {mode === "signin" ? (
               <>নতুন এখানে? <span className="text-leaf font-semibold">অ্যাকাউন্ট খুলুন</span></>
             ) : (
@@ -300,18 +241,6 @@ function AuthPage() {
   );
 }
 
-function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`h-9 rounded-xl transition-all ${active ? "bg-leaf text-white shadow-leaf" : "text-ink-soft hover:text-ink"}`}
-    >
-      {children}
-    </button>
-  );
-}
-
 function Alerts({ error, info }: { error: string | null; info: string | null }) {
   return (
     <>
@@ -323,12 +252,9 @@ function Alerts({ error, info }: { error: string | null; info: string | null }) 
 
 function PrimaryBtn({ busy, children }: { busy: boolean; children: React.ReactNode }) {
   return (
-    <button
-      type="submit"
-      disabled={busy}
+    <button type="submit" disabled={busy}
       className="mt-1 flex items-center justify-center gap-2 bg-leaf text-white font-bold text-[15px] rounded-2xl shadow-leaf active:scale-[0.98] transition-transform disabled:opacity-60"
-      style={{ height: 50 }}
-    >
+      style={{ height: 50 }}>
       {busy && <Loader2 size={16} className="animate-spin" />}
       {children}
     </button>

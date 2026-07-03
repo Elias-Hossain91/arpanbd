@@ -35,6 +35,7 @@ export function ArpanApp() {
   const [selected, setSelected] = useState<Item | null>(null);
   const [activeCat, setActiveCat] = useState<string>("সব");
   const [query, setQuery] = useState("");
+  const [district, setDistrict] = useState<string>("সব জেলা");
   const [dbItems, setDbItems] = useState<Item[]>([]);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -96,6 +97,9 @@ export function ArpanApp() {
 
   const list = useMemo(() => {
     let l = activeCat === "সব" ? allItems : allItems.filter((i) => i.cat === activeCat);
+    if (district && district !== "সব জেলা") {
+      l = l.filter((i) => (i.area ?? "").includes(district));
+    }
     if (query.trim()) {
       const q = query.toLowerCase();
       l = l.filter(
@@ -106,7 +110,7 @@ export function ArpanApp() {
       );
     }
     return l;
-  }, [activeCat, query, allItems]);
+  }, [activeCat, query, district, allItems]);
 
   const requireAuth = () => {
     if (!user) {
@@ -148,6 +152,8 @@ export function ArpanApp() {
             setActiveCat={setActiveCat}
             query={query}
             setQuery={setQuery}
+            district={district}
+            setDistrict={setDistrict}
             open={open}
             user={user}
             favorites={favorites}
@@ -245,10 +251,12 @@ function PostBtn({ onClick }: { onClick: () => void }) {
 /* -------------------- HOME -------------------- */
 
 function HomeScreen({
-  list, loading, activeCat, setActiveCat, query, setQuery, open, user, favorites, toggleFavorite, goAuth,
+  list, loading, activeCat, setActiveCat, query, setQuery, district, setDistrict, open, user, favorites, toggleFavorite, goAuth,
 }: {
   list: Item[]; loading: boolean; activeCat: string; setActiveCat: (v: string) => void;
-  query: string; setQuery: (v: string) => void; open: (i: Item) => void;
+  query: string; setQuery: (v: string) => void;
+  district: string; setDistrict: (v: string) => void;
+  open: (i: Item) => void;
   user: any; favorites: Set<string>; toggleFavorite: (i: Item) => void; goAuth: () => void;
 }) {
   return (
@@ -259,9 +267,21 @@ function HomeScreen({
           <Logo />
           <div className="flex items-center gap-2 shrink-0">
 
-            <button className="flex items-center gap-1 text-ink-soft text-[13px] bg-paper border border-border rounded-full px-2.5 py-1.5">
-              <MapPin size={14} className="text-marigold" /> ঢাকা
-            </button>
+            <label className="relative flex items-center gap-1 text-ink-soft text-[13px] bg-paper border border-border rounded-full px-2.5 py-1.5 cursor-pointer hover:border-leaf transition-colors">
+              <MapPin size={14} className="text-marigold" />
+              <span className="max-w-[90px] truncate">{district}</span>
+              <select
+                aria-label="জেলা নির্বাচন করুন"
+                value={district}
+                onChange={(e) => setDistrict(e.target.value)}
+                className="absolute inset-0 opacity-0 cursor-pointer"
+              >
+                <option value="সব জেলা">সব জেলা</option>
+                {BD_DISTRICTS.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </label>
             {user ? (
               <button
                 aria-label="Notifications"
