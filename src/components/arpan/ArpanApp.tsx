@@ -97,6 +97,9 @@ export function ArpanApp() {
 
   const list = useMemo(() => {
     let l = activeCat === "সব" ? allItems : allItems.filter((i) => i.cat === activeCat);
+    if (district && district !== "সব জেলা") {
+      l = l.filter((i) => (i.area ?? "").includes(district));
+    }
     if (query.trim()) {
       const q = query.toLowerCase();
       l = l.filter(
@@ -107,7 +110,7 @@ export function ArpanApp() {
       );
     }
     return l;
-  }, [activeCat, query, allItems]);
+  }, [activeCat, query, district, allItems]);
 
   const requireAuth = () => {
     if (!user) {
