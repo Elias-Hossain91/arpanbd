@@ -152,6 +152,8 @@ export function ArpanApp() {
             setActiveCat={setActiveCat}
             query={query}
             setQuery={setQuery}
+            district={district}
+            setDistrict={setDistrict}
             open={open}
             user={user}
             favorites={favorites}
