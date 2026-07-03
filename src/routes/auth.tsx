@@ -46,6 +46,7 @@ function AuthPage() {
 
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState("");
+  const [resendIn, setResendIn] = useState(0);
 
   useEffect(() => {
     if (user && !authLoading) navigate({ to: "/" });
@@ -54,9 +55,16 @@ function AuthPage() {
   useEffect(() => {
     setOtpSent(false);
     setOtpCode("");
+    setResendIn(0);
     setError(null);
     setInfo(null);
   }, [useOtp, mode]);
+
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = setInterval(() => setResendIn((s) => (s <= 1 ? 0 : s - 1)), 1000);
+    return () => clearInterval(t);
+  }, [resendIn]);
 
   const submitPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,6 +81,7 @@ function AuthPage() {
         setInfo("অ্যাকাউন্ট তৈরি হয়েছে। মোবাইল নম্বর যাচাই করতে OTP পাঠানো হয়েছে।");
         setUseOtp(true);
         setOtpSent(true);
+        setResendIn(45);
       } else {
         const { error } = await supabase.auth.signInWithPassword({ phone: p, password });
         if (error) throw error;
@@ -100,6 +109,7 @@ function AuthPage() {
       if (error) throw error;
       setInfo(`${p} নম্বরে SMS কোড পাঠানো হয়েছে।`);
       setOtpSent(true);
+      setResendIn(45);
     } catch (err: any) {
       setError(err?.message ?? "কোড পাঠানো যায়নি।");
     } finally {
@@ -200,6 +210,16 @@ function AuthPage() {
                       placeholder="৬-সংখ্যার কোড" value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))} />
                   </FieldRow>
+                  <button
+                    type="button"
+                    disabled={resendIn > 0 || busy}
+                    onClick={() => sendOtp({ preventDefault: () => {} } as React.FormEvent)}
+                    className="text-[12.5px] text-center text-leaf font-semibold disabled:text-ink-soft disabled:cursor-not-allowed"
+                  >
+                    {resendIn > 0
+                      ? `আবার কোড পাঠান (${resendIn}s)`
+                      : "আবার কোড পাঠান"}
+                  </button>
                 </>
               )}
               <Alerts error={error} info={info} />
