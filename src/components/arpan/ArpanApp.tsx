@@ -267,9 +267,21 @@ function HomeScreen({
           <Logo />
           <div className="flex items-center gap-2 shrink-0">
 
-            <button className="flex items-center gap-1 text-ink-soft text-[13px] bg-paper border border-border rounded-full px-2.5 py-1.5">
-              <MapPin size={14} className="text-marigold" /> ঢাকা
-            </button>
+            <label className="relative flex items-center gap-1 text-ink-soft text-[13px] bg-paper border border-border rounded-full px-2.5 py-1.5 cursor-pointer hover:border-leaf transition-colors">
+              <MapPin size={14} className="text-marigold" />
+              <span className="max-w-[90px] truncate">{district}</span>
+              <select
+                aria-label="জেলা নির্বাচন করুন"
+                value={district}
+                onChange={(e) => setDistrict(e.target.value)}
+                className="absolute inset-0 opacity-0 cursor-pointer"
+              >
+                <option value="সব জেলা">সব জেলা</option>
+                {BD_DISTRICTS.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </label>
             {user ? (
               <button
                 aria-label="Notifications"
