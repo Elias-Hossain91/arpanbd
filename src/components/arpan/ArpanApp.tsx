@@ -35,6 +35,7 @@ export function ArpanApp() {
   const [selected, setSelected] = useState<Item | null>(null);
   const [activeCat, setActiveCat] = useState<string>("সব");
   const [query, setQuery] = useState("");
+  const [district, setDistrict] = useState<string>("সব জেলা");
   const [dbItems, setDbItems] = useState<Item[]>([]);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
