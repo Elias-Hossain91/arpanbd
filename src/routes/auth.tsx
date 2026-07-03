@@ -80,7 +80,6 @@ function AuthPage() {
         if (error) throw error;
         setInfo("অ্যাকাউন্ট তৈরি হয়েছে। মোবাইল নম্বর যাচাই করতে OTP পাঠানো হয়েছে।");
         setUseOtp(true);
-        setUseOtp(true);
         setOtpSent(true);
         setResendIn(45);
       } else {
