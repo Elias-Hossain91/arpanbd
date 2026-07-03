@@ -251,10 +251,12 @@ function PostBtn({ onClick }: { onClick: () => void }) {
 /* -------------------- HOME -------------------- */
 
 function HomeScreen({
-  list, loading, activeCat, setActiveCat, query, setQuery, open, user, favorites, toggleFavorite, goAuth,
+  list, loading, activeCat, setActiveCat, query, setQuery, district, setDistrict, open, user, favorites, toggleFavorite, goAuth,
 }: {
   list: Item[]; loading: boolean; activeCat: string; setActiveCat: (v: string) => void;
-  query: string; setQuery: (v: string) => void; open: (i: Item) => void;
+  query: string; setQuery: (v: string) => void;
+  district: string; setDistrict: (v: string) => void;
+  open: (i: Item) => void;
   user: any; favorites: Set<string>; toggleFavorite: (i: Item) => void; goAuth: () => void;
 }) {
   return (
