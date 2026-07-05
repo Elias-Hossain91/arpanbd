@@ -4,15 +4,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { useAuth } from "@/hooks/useAuth";
 import { Logo, Stitch } from "@/components/arpan/brand";
-import { Lock, User as UserIcon, Phone, ChevronLeft, Loader2, KeyRound } from "lucide-react";
+import { Lock, User as UserIcon, Mail, ChevronLeft, Loader2, KeyRound } from "lucide-react";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: "সাইন ইন · অর্পণ" },
-      { name: "description", content: "অর্পণে মোবাইল নম্বর দিয়ে সাইন ইন — পাসওয়ার্ড বা OTP দিয়ে।" },
+      { name: "description", content: "অর্পণে ইমেইল দিয়ে সাইন ইন — পাসওয়ার্ড বা OTP দিয়ে।" },
       { property: "og:title", content: "সাইন ইন · অর্পণ" },
-      { property: "og:description", content: "মোবাইল নম্বরে পাসওয়ার্ড বা OTP দিয়ে অর্পণে যোগ দিন।" },
+      { property: "og:description", content: "ইমেইলে পাসওয়ার্ড বা OTP দিয়ে অর্পণে যোগ দিন।" },
       { property: "og:url", content: "https://arpanbd.lovable.app/auth" },
       { name: "robots", content: "noindex" },
     ],
@@ -20,15 +20,6 @@ export const Route = createFileRoute("/auth")({
   }),
   component: AuthPage,
 });
-
-function normalizePhone(raw: string): string {
-  const p = raw.trim().replace(/\s+/g, "").replace(/[-()]/g, "");
-  if (/^\+\d{8,15}$/.test(p)) return p;
-  // Bangladeshi 01XXXXXXXXX -> +8801XXXXXXXXX
-  if (/^01\d{9}$/.test(p)) return "+88" + p;
-  if (/^8801\d{9}$/.test(p)) return "+" + p;
-  return p;
-}
 
 function AuthPage() {
   const navigate = useNavigate();
@@ -41,7 +32,7 @@ function AuthPage() {
   const [info, setInfo] = useState<string | null>(null);
 
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const [otpSent, setOtpSent] = useState(false);
@@ -70,20 +61,20 @@ function AuthPage() {
     e.preventDefault();
     setError(null); setInfo(null); setBusy(true);
     try {
-      const p = normalizePhone(phone);
-      if (!/^\+\d{8,15}$/.test(p)) throw new Error("সঠিক মোবাইল নম্বর দিন (যেমন 01XXXXXXXXX)।");
+      const em = email.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) throw new Error("সঠিক ইমেইল দিন।");
       if (mode === "signup") {
         const { error } = await supabase.auth.signUp({
-          phone: p, password,
-          options: { data: { display_name: name || p } },
+          email: em, password,
+          options: {
+            data: { display_name: name || em.split("@")[0] },
+            emailRedirectTo: window.location.origin,
+          },
         });
         if (error) throw error;
-        setInfo("অ্যাকাউন্ট তৈরি হয়েছে। মোবাইল নম্বর যাচাই করতে OTP পাঠানো হয়েছে।");
-        setUseOtp(true);
-        setOtpSent(true);
-        setResendIn(45);
+        setInfo("অ্যাকাউন্ট তৈরি হয়েছে। ইমেইল যাচাই করে সাইন ইন করুন।");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ phone: p, password });
+        const { error } = await supabase.auth.signInWithPassword({ email: em, password });
         if (error) throw error;
       }
     } catch (err: any) {
@@ -97,17 +88,18 @@ function AuthPage() {
     e.preventDefault();
     setError(null); setInfo(null); setBusy(true);
     try {
-      const p = normalizePhone(phone);
-      if (!/^\+\d{8,15}$/.test(p)) throw new Error("সঠিক মোবাইল নম্বর দিন (যেমন 01XXXXXXXXX)।");
+      const em = email.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) throw new Error("সঠিক ইমেইল দিন।");
       const { error } = await supabase.auth.signInWithOtp({
-        phone: p,
+        email: em,
         options: {
           shouldCreateUser: mode === "signup",
-          data: { display_name: name || p },
+          data: { display_name: name || em.split("@")[0] },
+          emailRedirectTo: window.location.origin,
         },
       });
       if (error) throw error;
-      setInfo(`${p} নম্বরে SMS কোড পাঠানো হয়েছে।`);
+      setInfo(`${em} ঠিকানায় কোড পাঠানো হয়েছে।`);
       setOtpSent(true);
       setResendIn(45);
     } catch (err: any) {
@@ -121,9 +113,9 @@ function AuthPage() {
     e.preventDefault();
     setError(null); setBusy(true);
     try {
-      const p = normalizePhone(phone);
+      const em = email.trim().toLowerCase();
       const { error } = await supabase.auth.verifyOtp({
-        phone: p, token: otpCode.trim(), type: "sms",
+        email: em, token: otpCode.trim(), type: "email",
       });
       if (error) throw error;
     } catch (err: any) {
@@ -158,7 +150,7 @@ function AuthPage() {
             {mode === "signin" ? "আবার স্বাগতম" : "অর্পণে যোগ দিন"}
           </h1>
           <div className="text-center text-[13px] text-ink-soft mt-1">
-            মোবাইল নম্বর দিয়ে {useOtp ? "OTP" : "পাসওয়ার্ড"} দিয়ে {mode === "signin" ? "সাইন ইন" : "সাইন আপ"}
+            ইমেইল দিয়ে {useOtp ? "OTP" : "পাসওয়ার্ড"} দিয়ে {mode === "signin" ? "সাইন ইন" : "সাইন আপ"}
           </div>
         </div>
         <Stitch />
@@ -172,9 +164,9 @@ function AuthPage() {
                     value={name} onChange={(e) => setName(e.target.value)} />
                 </FieldRow>
               )}
-              <FieldRow icon={Phone}>
-                <input type="tel" required className="bg-transparent outline-none flex-1 text-sm"
-                  placeholder="মোবাইল নম্বর (01XXXXXXXXX)" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <FieldRow icon={Mail}>
+                <input type="email" required className="bg-transparent outline-none flex-1 text-sm"
+                  placeholder="ইমেইল ঠিকানা" value={email} onChange={(e) => setEmail(e.target.value)} />
               </FieldRow>
               <FieldRow icon={Lock}>
                 <input type="password" required minLength={6} className="bg-transparent outline-none flex-1 text-sm"
@@ -195,14 +187,14 @@ function AuthPage() {
                 </FieldRow>
               )}
               {!otpSent ? (
-                <FieldRow icon={Phone}>
-                  <input type="tel" required className="bg-transparent outline-none flex-1 text-sm"
-                    placeholder="মোবাইল নম্বর (01XXXXXXXXX)" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                <FieldRow icon={Mail}>
+                  <input type="email" required className="bg-transparent outline-none flex-1 text-sm"
+                    placeholder="ইমেইল ঠিকানা" value={email} onChange={(e) => setEmail(e.target.value)} />
                 </FieldRow>
               ) : (
                 <>
                   <div className="text-[12.5px] text-ink-soft text-center">
-                    কোড পাঠানো হয়েছে <span className="text-ink font-semibold">{normalizePhone(phone)}</span> এ
+                    কোড পাঠানো হয়েছে <span className="text-ink font-semibold">{email}</span> এ
                   </div>
                   <FieldRow icon={KeyRound}>
                     <input inputMode="numeric" pattern="\d*" maxLength={6} required
