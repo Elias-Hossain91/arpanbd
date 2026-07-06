@@ -1079,6 +1079,7 @@ function ActivityScreen({
                 placeholder="যেমন: 01XXXXXXXXX"
                 className="w-full h-11 rounded-xl border border-border bg-paper px-3 text-sm outline-none focus:border-leaf"
               />
+            </div>
             <label className="flex items-center justify-between bg-paper rounded-xl px-3 py-2.5 border border-border">
               <span className="text-[13px] text-ink">আমার ফোন নম্বর দেখাও</span>
               <input
