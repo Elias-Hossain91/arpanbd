@@ -1069,6 +1069,16 @@ function ActivityScreen({
                 {BD_DISTRICTS.map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
+            <div>
+              <div className="text-[12.5px] text-ink-soft mb-1">মোবাইল নম্বর</div>
+              <input
+                type="tel"
+                inputMode="tel"
+                value={formPhone}
+                onChange={(e) => setFormPhone(e.target.value)}
+                placeholder="যেমন: 01XXXXXXXXX"
+                className="w-full h-11 rounded-xl border border-border bg-paper px-3 text-sm outline-none focus:border-leaf"
+              />
             <label className="flex items-center justify-between bg-paper rounded-xl px-3 py-2.5 border border-border">
               <span className="text-[13px] text-ink">আমার ফোন নম্বর দেখাও</span>
               <input
