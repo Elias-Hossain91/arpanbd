@@ -879,6 +879,7 @@ function ActivityScreen({
   const [editing, setEditing] = useState(false);
   const [formName, setFormName] = useState("");
   const [formDistrict, setFormDistrict] = useState("");
+  const [formPhone, setFormPhone] = useState("");
   const [formShowPhone, setFormShowPhone] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
 
