@@ -879,6 +879,7 @@ function ActivityScreen({
   const [editing, setEditing] = useState(false);
   const [formName, setFormName] = useState("");
   const [formDistrict, setFormDistrict] = useState("");
+  const [formPhone, setFormPhone] = useState("");
   const [formShowPhone, setFormShowPhone] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
 
@@ -911,6 +912,12 @@ function ActivityScreen({
         setFormName(fallbackName);
       }
     }
+    const { data: priv } = await supabase
+      .from("profile_private")
+      .select("phone")
+      .eq("id", user.id)
+      .maybeSingle();
+    setFormPhone(priv?.phone ?? "");
   }, [user]);
 
   useEffect(() => { loadProfile(); }, [loadProfile]);
@@ -943,15 +950,29 @@ function ActivityScreen({
       setProfileError("নাম দিন।");
       return;
     }
+    const phoneTrim = formPhone.trim();
+    if (phoneTrim && !/^\+?[0-9\s-]{6,20}$/.test(phoneTrim)) {
+      setProfileError("সঠিক মোবাইল নম্বর দিন।");
+      return;
+    }
     setSavingProfile(true);
     const { error } = await supabase.from("profiles").update({
       display_name: formName.trim(),
       district: formDistrict || null,
       show_phone: formShowPhone,
     }).eq("id", user.id);
-    setSavingProfile(false);
     if (error) {
+      setSavingProfile(false);
       setProfileError(error.message);
+      return;
+    }
+    const { error: pErr } = await supabase.from("profile_private").upsert({
+      id: user.id,
+      phone: phoneTrim || null,
+    });
+    setSavingProfile(false);
+    if (pErr) {
+      setProfileError(pErr.message);
       return;
     }
     setEditing(false);
@@ -1047,6 +1068,17 @@ function ActivityScreen({
                 <option value="">— জেলা নির্বাচন করুন —</option>
                 {BD_DISTRICTS.map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
+            </div>
+            <div>
+              <div className="text-[12.5px] text-ink-soft mb-1">মোবাইল নম্বর</div>
+              <input
+                type="tel"
+                inputMode="tel"
+                value={formPhone}
+                onChange={(e) => setFormPhone(e.target.value)}
+                placeholder="যেমন: 01XXXXXXXXX"
+                className="w-full h-11 rounded-xl border border-border bg-paper px-3 text-sm outline-none focus:border-leaf"
+              />
             </div>
             <label className="flex items-center justify-between bg-paper rounded-xl px-3 py-2.5 border border-border">
               <span className="text-[13px] text-ink">আমার ফোন নম্বর দেখাও</span>
