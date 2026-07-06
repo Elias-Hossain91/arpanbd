@@ -880,21 +880,36 @@ function ActivityScreen({
   const [formName, setFormName] = useState("");
   const [formDistrict, setFormDistrict] = useState("");
   const [formShowPhone, setFormShowPhone] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   const loadProfile = useCallback(async () => {
     if (!user) { setProfile(null); return; }
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("profiles")
       .select("display_name, area, district, points, items_given, items_received, show_phone")
       .eq("id", user.id)
       .maybeSingle();
+    if (error) {
+      setProfileError(error.message);
+      return;
+    }
     if (data) {
       setProfile(data as ProfileRow);
       setFormName(data.display_name ?? "");
       setFormDistrict(data.district ?? "");
       setFormShowPhone(!!data.show_phone);
-      // First-run setup if no district picked yet
       if (!data.district) setEditing(true);
+    } else {
+      const fallbackName = user.user_metadata?.display_name ?? user.email?.split("@")[0] ?? "অর্পণ ব্যবহারকারী";
+      const { error: insErr } = await supabase.from("profiles").insert({
+        id: user.id,
+        display_name: fallbackName,
+      });
+      if (insErr) setProfileError(insErr.message);
+      else {
+        setEditing(true);
+        setFormName(fallbackName);
+      }
     }
   }, [user]);
 
@@ -923,14 +938,22 @@ function ActivityScreen({
   };
 
   const saveProfile = async () => {
-    if (!formName.trim() || !formDistrict) return;
+    setProfileError(null);
+    if (!formName.trim()) {
+      setProfileError("নাম দিন।");
+      return;
+    }
     setSavingProfile(true);
-    await supabase.from("profiles").update({
+    const { error } = await supabase.from("profiles").update({
       display_name: formName.trim(),
-      district: formDistrict,
+      district: formDistrict || null,
       show_phone: formShowPhone,
     }).eq("id", user.id);
     setSavingProfile(false);
+    if (error) {
+      setProfileError(error.message);
+      return;
+    }
     setEditing(false);
     await loadProfile();
   };
