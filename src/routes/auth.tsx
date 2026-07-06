@@ -4,15 +4,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { useAuth } from "@/hooks/useAuth";
 import { Logo, Stitch } from "@/components/arpan/brand";
-import { Lock, User as UserIcon, Mail, ChevronLeft, Loader2, KeyRound } from "lucide-react";
+import { Lock, User as UserIcon, Mail, ChevronLeft, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: "সাইন ইন · অর্পণ" },
-      { name: "description", content: "অর্পণে ইমেইল দিয়ে সাইন ইন — পাসওয়ার্ড বা OTP দিয়ে।" },
+      { name: "description", content: "অর্পণে ইমেইল ও পাসওয়ার্ড অথবা Google দিয়ে সাইন ইন করুন।" },
       { property: "og:title", content: "সাইন ইন · অর্পণ" },
-      { property: "og:description", content: "ইমেইলে পাসওয়ার্ড বা OTP দিয়ে অর্পণে যোগ দিন।" },
+      { property: "og:description", content: "ইমেইল ও পাসওয়ার্ড অথবা Google দিয়ে অর্পণে যোগ দিন।" },
       { property: "og:url", content: "https://arpanbd.lovable.app/auth" },
       { name: "robots", content: "noindex" },
     ],
@@ -25,7 +25,6 @@ function AuthPage() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [useOtp, setUseOtp] = useState(false);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,27 +34,14 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpCode, setOtpCode] = useState("");
-  const [resendIn, setResendIn] = useState(0);
-
   useEffect(() => {
     if (user && !authLoading) navigate({ to: "/" });
   }, [user, authLoading, navigate]);
 
   useEffect(() => {
-    setOtpSent(false);
-    setOtpCode("");
-    setResendIn(0);
     setError(null);
     setInfo(null);
-  }, [useOtp, mode]);
-
-  useEffect(() => {
-    if (resendIn <= 0) return;
-    const t = setInterval(() => setResendIn((s) => (s <= 1 ? 0 : s - 1)), 1000);
-    return () => clearInterval(t);
-  }, [resendIn]);
+  }, [mode]);
 
   const submitPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,62 +50,25 @@ function AuthPage() {
       const em = email.trim().toLowerCase();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) throw new Error("সঠিক ইমেইল দিন।");
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
-          email: em, password,
+        if (password.length < 6) throw new Error("পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।");
+        const { data, error } = await supabase.auth.signUp({
+          email: em,
+          password,
           options: {
             data: { display_name: name || em.split("@")[0] },
             emailRedirectTo: window.location.origin,
           },
         });
         if (error) throw error;
-        setInfo("অ্যাকাউন্ট তৈরি হয়েছে। ইমেইল যাচাই করে সাইন ইন করুন।");
+        if (!data.session) {
+          setInfo("অ্যাকাউন্ট তৈরি হয়েছে। ইমেইলে পাঠানো লিঙ্কে ক্লিক করে যাচাই করুন, তারপর সাইন ইন করুন।");
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email: em, password });
         if (error) throw error;
       }
     } catch (err: any) {
       setError(err?.message ?? "কিছু একটা ভুল হয়েছে।");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const sendOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null); setInfo(null); setBusy(true);
-    try {
-      const em = email.trim().toLowerCase();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) throw new Error("সঠিক ইমেইল দিন।");
-      const { error } = await supabase.auth.signInWithOtp({
-        email: em,
-        options: {
-          shouldCreateUser: mode === "signup",
-          data: { display_name: name || em.split("@")[0] },
-          emailRedirectTo: window.location.origin,
-        },
-      });
-      if (error) throw error;
-      setInfo(`${em} ঠিকানায় কোড পাঠানো হয়েছে।`);
-      setOtpSent(true);
-      setResendIn(45);
-    } catch (err: any) {
-      setError(err?.message ?? "কোড পাঠানো যায়নি।");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const verifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null); setBusy(true);
-    try {
-      const em = email.trim().toLowerCase();
-      const { error } = await supabase.auth.verifyOtp({
-        email: em, token: otpCode.trim(), type: "email",
-      });
-      if (error) throw error;
-    } catch (err: any) {
-      setError(err?.message ?? "কোড মিলছে না।");
     } finally {
       setBusy(false);
     }
@@ -150,77 +99,30 @@ function AuthPage() {
             {mode === "signin" ? "আবার স্বাগতম" : "অর্পণে যোগ দিন"}
           </h1>
           <div className="text-center text-[13px] text-ink-soft mt-1">
-            ইমেইল দিয়ে {useOtp ? "OTP" : "পাসওয়ার্ড"} দিয়ে {mode === "signin" ? "সাইন ইন" : "সাইন আপ"}
+            ইমেইল ও পাসওয়ার্ড অথবা Google দিয়ে {mode === "signin" ? "সাইন ইন" : "সাইন আপ"}
           </div>
         </div>
         <Stitch />
 
         <div className="px-5 pt-5 pb-6 flex flex-col gap-3">
-          {!useOtp ? (
-            <form onSubmit={submitPassword} className="flex flex-col gap-3">
-              {mode === "signup" && (
-                <FieldRow icon={UserIcon}>
-                  <input className="bg-transparent outline-none flex-1 text-sm" placeholder="আপনার নাম"
-                    value={name} onChange={(e) => setName(e.target.value)} />
-                </FieldRow>
-              )}
-              <FieldRow icon={Mail}>
-                <input type="email" required className="bg-transparent outline-none flex-1 text-sm"
-                  placeholder="ইমেইল ঠিকানা" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <form onSubmit={submitPassword} className="flex flex-col gap-3">
+            {mode === "signup" && (
+              <FieldRow icon={UserIcon}>
+                <input className="bg-transparent outline-none flex-1 text-sm" placeholder="আপনার নাম"
+                  value={name} onChange={(e) => setName(e.target.value)} />
               </FieldRow>
-              <FieldRow icon={Lock}>
-                <input type="password" required minLength={6} className="bg-transparent outline-none flex-1 text-sm"
-                  placeholder="পাসওয়ার্ড (৬+ অক্ষর)" value={password} onChange={(e) => setPassword(e.target.value)} />
-              </FieldRow>
-              <Alerts error={error} info={info} />
-              <PrimaryBtn busy={busy}>{mode === "signin" ? "সাইন ইন" : "অ্যাকাউন্ট খুলুন"}</PrimaryBtn>
-              <button type="button" onClick={() => setUseOtp(true)} className="text-[12.5px] text-leaf font-semibold text-center">
-                পাসওয়ার্ড ছাড়া OTP দিয়ে সাইন ইন করুন →
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={otpSent ? verifyOtp : sendOtp} className="flex flex-col gap-3">
-              {mode === "signup" && !otpSent && (
-                <FieldRow icon={UserIcon}>
-                  <input className="bg-transparent outline-none flex-1 text-sm" placeholder="আপনার নাম"
-                    value={name} onChange={(e) => setName(e.target.value)} />
-                </FieldRow>
-              )}
-              {!otpSent ? (
-                <FieldRow icon={Mail}>
-                  <input type="email" required className="bg-transparent outline-none flex-1 text-sm"
-                    placeholder="ইমেইল ঠিকানা" value={email} onChange={(e) => setEmail(e.target.value)} />
-                </FieldRow>
-              ) : (
-                <>
-                  <div className="text-[12.5px] text-ink-soft text-center">
-                    কোড পাঠানো হয়েছে <span className="text-ink font-semibold">{email}</span> এ
-                  </div>
-                  <FieldRow icon={KeyRound}>
-                    <input inputMode="numeric" pattern="\d*" maxLength={6} required
-                      className="bg-transparent outline-none flex-1 text-sm tracking-[0.4em] text-center"
-                      placeholder="৬-সংখ্যার কোড" value={otpCode}
-                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))} />
-                  </FieldRow>
-                  <button
-                    type="button"
-                    disabled={resendIn > 0 || busy}
-                    onClick={() => sendOtp({ preventDefault: () => {} } as React.FormEvent)}
-                    className="text-[12.5px] text-center text-leaf font-semibold disabled:text-ink-soft disabled:cursor-not-allowed"
-                  >
-                    {resendIn > 0
-                      ? `আবার কোড পাঠান (${resendIn}s)`
-                      : "আবার কোড পাঠান"}
-                  </button>
-                </>
-              )}
-              <Alerts error={error} info={info} />
-              <PrimaryBtn busy={busy}>{otpSent ? "কোড যাচাই করুন" : "OTP পাঠান"}</PrimaryBtn>
-              <button type="button" onClick={() => { setUseOtp(false); setOtpSent(false); }} className="text-[12.5px] text-leaf font-semibold text-center">
-                ← পাসওয়ার্ড দিয়ে সাইন ইন করুন
-              </button>
-            </form>
-          )}
+            )}
+            <FieldRow icon={Mail}>
+              <input type="email" required className="bg-transparent outline-none flex-1 text-sm"
+                placeholder="ইমেইল ঠিকানা" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </FieldRow>
+            <FieldRow icon={Lock}>
+              <input type="password" required minLength={6} className="bg-transparent outline-none flex-1 text-sm"
+                placeholder="পাসওয়ার্ড (৬+ অক্ষর)" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </FieldRow>
+            <Alerts error={error} info={info} />
+            <PrimaryBtn busy={busy}>{mode === "signin" ? "সাইন ইন" : "অ্যাকাউন্ট খুলুন"}</PrimaryBtn>
+          </form>
 
           <div className="flex items-center gap-3 my-1">
             <div className="flex-1 h-px bg-border" />
