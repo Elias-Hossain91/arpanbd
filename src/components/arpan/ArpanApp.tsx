@@ -912,6 +912,12 @@ function ActivityScreen({
         setFormName(fallbackName);
       }
     }
+    const { data: priv } = await supabase
+      .from("profile_private")
+      .select("phone")
+      .eq("id", user.id)
+      .maybeSingle();
+    setFormPhone(priv?.phone ?? "");
   }, [user]);
 
   useEffect(() => { loadProfile(); }, [loadProfile]);
