@@ -1060,20 +1060,23 @@ function ActivityScreen({
             <div className="flex gap-2">
               <button
                 onClick={saveProfile}
-                disabled={savingProfile || !formName.trim() || !formDistrict}
+                disabled={savingProfile || !formName.trim()}
                 className="flex-1 h-11 rounded-xl bg-leaf text-white font-bold text-sm disabled:opacity-60 flex items-center justify-center gap-2"
               >
                 {savingProfile && <Loader2 size={14} className="animate-spin" />} সংরক্ষণ
               </button>
-              {profile?.district && (
-                <button
-                  onClick={() => setEditing(false)}
-                  className="px-4 h-11 rounded-xl border border-border text-ink-soft text-sm"
-                >
-                  বাতিল
-                </button>
-              )}
+              <button
+                onClick={() => { setEditing(false); setProfileError(null); }}
+                className="px-4 h-11 rounded-xl border border-border text-ink-soft text-sm"
+              >
+                বাতিল
+              </button>
             </div>
+            {profileError && (
+              <div className="text-[12.5px] bg-marigold-soft text-marigold rounded-xl px-3 py-2">
+                {profileError}
+              </div>
+            )}
           </div>
         ) : (
           <button
