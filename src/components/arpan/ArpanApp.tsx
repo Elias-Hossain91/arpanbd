@@ -950,15 +950,29 @@ function ActivityScreen({
       setProfileError("নাম দিন।");
       return;
     }
+    const phoneTrim = formPhone.trim();
+    if (phoneTrim && !/^\+?[0-9\s-]{6,20}$/.test(phoneTrim)) {
+      setProfileError("সঠিক মোবাইল নম্বর দিন।");
+      return;
+    }
     setSavingProfile(true);
     const { error } = await supabase.from("profiles").update({
       display_name: formName.trim(),
       district: formDistrict || null,
       show_phone: formShowPhone,
     }).eq("id", user.id);
-    setSavingProfile(false);
     if (error) {
+      setSavingProfile(false);
       setProfileError(error.message);
+      return;
+    }
+    const { error: pErr } = await supabase.from("profile_private").upsert({
+      id: user.id,
+      phone: phoneTrim || null,
+    });
+    setSavingProfile(false);
+    if (pErr) {
+      setProfileError(pErr.message);
       return;
     }
     setEditing(false);
