@@ -120,6 +120,12 @@ function AuthPage() {
               <input type="password" required minLength={6} className="bg-transparent outline-none flex-1 text-sm"
                 placeholder="পাসওয়ার্ড (৬+ অক্ষর)" value={password} onChange={(e) => setPassword(e.target.value)} />
             </FieldRow>
+            {mode === "signin" && (
+              <button type="button" onClick={forgotPassword} disabled={busy}
+                className="self-end text-[12px] text-leaf font-semibold -mt-1">
+                পাসওয়ার্ড ভুলে গেছেন?
+              </button>
+            )}
             <Alerts error={error} info={info} />
             <PrimaryBtn busy={busy}>{mode === "signin" ? "সাইন ইন" : "অ্যাকাউন্ট খুলুন"}</PrimaryBtn>
           </form>
