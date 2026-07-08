@@ -127,15 +127,27 @@ function ResetPasswordPage() {
             নতুন পাসওয়ার্ড সেট করুন
           </h1>
           <div className="text-center text-[13px] text-ink-soft mt-1">
-            {ready ? "নতুন পাসওয়ার্ড দিন ও নিশ্চিত করুন।" : "রিসেট লিঙ্ক যাচাই করা হচ্ছে..."}
+            {verifying ? "রিসেট লিঙ্ক যাচাই করা হচ্ছে..." : ready ? "নতুন পাসওয়ার্ড দিন ও নিশ্চিত করুন।" : "লিঙ্ক অকার্যকর।"}
           </div>
         </div>
         <Stitch />
 
         <div className="px-5 pt-5 pb-6 flex flex-col gap-3">
-          {!ready ? (
-            <div className="text-center text-[13px] text-ink-soft py-6">
-              যদি এই পেজ ইমেইলের লিঙ্ক থেকে না খুলে থাকেন, তবে সাইন ইন পেজ থেকে "পাসওয়ার্ড ভুলে গেছেন?" ব্যবহার করে নতুন লিঙ্ক নিন।
+          {verifying ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-ink-soft text-sm">
+              <Loader2 size={16} className="animate-spin" /> যাচাই করা হচ্ছে...
+            </div>
+          ) : !ready ? (
+            <div className="flex flex-col gap-3 py-2">
+              {error && <div className="text-[12.5px] bg-marigold-soft text-marigold rounded-xl px-3 py-2">{error}</div>}
+              <div className="text-center text-[13px] text-ink-soft">
+                সাইন ইন পেজ থেকে "পাসওয়ার্ড ভুলে গেছেন?" ব্যবহার করে নতুন লিঙ্ক নিন।
+              </div>
+              <Link to="/auth"
+                className="mt-1 flex items-center justify-center bg-leaf text-white font-bold text-[15px] rounded-2xl shadow-leaf active:scale-[0.98] transition-transform"
+                style={{ height: 48 }}>
+                সাইন ইন পেজে যান
+              </Link>
             </div>
           ) : (
             <form onSubmit={submit} className="flex flex-col gap-3">
