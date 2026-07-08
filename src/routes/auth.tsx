@@ -85,6 +85,27 @@ function AuthPage() {
     }
   };
 
+  const forgotPassword = async () => {
+    setError(null); setInfo(null);
+    const em = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) {
+      setError("পাসওয়ার্ড রিসেট লিঙ্ক পেতে আগে সঠিক ইমেইল দিন।");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(em, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      setInfo("রিসেট লিঙ্ক আপনার ইমেইলে পাঠানো হয়েছে। ইনবক্স দেখুন।");
+    } catch (err: any) {
+      setError(err?.message ?? "রিসেট লিঙ্ক পাঠানো যায়নি।");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="min-h-screen w-full bg-paper-deep paper-texture flex items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-md bg-paper rounded-3xl shadow-leaf overflow-hidden border border-border">
