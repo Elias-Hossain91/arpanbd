@@ -1,6 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { completePasswordReset } from "@/lib/auth/reset-password.functions";
 import { Logo, Stitch } from "@/components/arpan/brand";
 import { Lock, ChevronLeft, Loader2 } from "lucide-react";
 
@@ -15,10 +17,36 @@ export const Route = createFileRoute("/reset-password")({
   component: ResetPasswordPage,
 });
 
+/**
+ * Extract the recovery token_hash from the URL, no matter which delivery
+ * format Supabase uses:
+ *   - ?token_hash=...&type=recovery  (OTP link)
+ *   - #token_hash=...&type=recovery  (implicit hash)
+ *   - ?token=...&type=recovery       (legacy)
+ * `?code=...` (PKCE) is handled separately via exchangeCodeForSession.
+ */
+function readTokenFromUrl(): { tokenHash: string | null; code: string | null; type: string | null } {
+  if (typeof window === "undefined") return { tokenHash: null, code: null, type: null };
+  const url = new URL(window.location.href);
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const tokenHash =
+    url.searchParams.get("token_hash") ??
+    hash.get("token_hash") ??
+    url.searchParams.get("token") ??
+    hash.get("token");
+  const type = url.searchParams.get("type") ?? hash.get("type");
+  const code = url.searchParams.get("code");
+  return { tokenHash, code, type };
+}
+
 function ResetPasswordPage() {
   const navigate = useNavigate();
-  const [ready, setReady] = useState(false);
+  const completeReset = useServerFn(completePasswordReset);
+
+  const [tokenHash, setTokenHash] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(true);
+  const [ready, setReady] = useState(false);
+
   const [busy, setBusy] = useState(false);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -27,75 +55,56 @@ function ResetPasswordPage() {
 
   useEffect(() => {
     let cancelled = false;
-
-    const finish = (ok: boolean, msg?: string) => {
-      if (cancelled) return;
-      setReady(ok);
-      setVerifying(false);
-      if (!ok && msg) setError(msg);
-    };
-
-    const sub = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && session)) {
-        finish(true);
-      }
-    });
-
     (async () => {
-      try {
-        const url = new URL(window.location.href);
-        const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      const { tokenHash: t, code, type } = readTokenFromUrl();
 
-        // 1) PKCE flow: ?code=...
-        const code = url.searchParams.get("code");
-        if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
-          // clean the URL either way
-          url.searchParams.delete("code");
-          window.history.replaceState({}, "", url.pathname + url.search);
-          if (error) return finish(false, "রিসেট লিঙ্কটি অকার্যকর বা মেয়াদোত্তীর্ণ। নতুন লিঙ্ক নিন।");
-          return finish(true);
-        }
-
-        // 2) OTP token flow: ?token_hash=...&type=recovery
-        const tokenHash = url.searchParams.get("token_hash") ?? hash.get("token_hash");
-        const type = url.searchParams.get("type") ?? hash.get("type");
-        if (tokenHash && type === "recovery") {
-          const { error } = await supabase.auth.verifyOtp({ type: "recovery", token_hash: tokenHash });
-          if (error) return finish(false, "রিসেট লিঙ্কটি অকার্যকর বা মেয়াদোত্তীর্ণ। নতুন লিঙ্ক নিন।");
-          return finish(true);
-        }
-
-        // 3) Implicit flow: #access_token=...&refresh_token=...&type=recovery
-        const accessToken = hash.get("access_token");
-        const refreshToken = hash.get("refresh_token");
-        if (accessToken && refreshToken) {
-          const { error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
-          window.history.replaceState({}, "", url.pathname + url.search);
-          if (error) return finish(false, "রিসেট লিঙ্কটি অকার্যকর বা মেয়াদোত্তীর্ণ। নতুন লিঙ্ক নিন।");
-          return finish(true);
-        }
-
-        // 4) Already have a session (opened the link in same browser session)
-        const { data } = await supabase.auth.getSession();
-        if (data.session) return finish(true);
-
-        finish(false, "রিসেট লিঙ্ক পাওয়া যায়নি। সাইন ইন পেজ থেকে নতুন করে চেষ্টা করুন।");
-      } catch {
-        finish(false, "রিসেট লিঙ্ক যাচাই করা যায়নি।");
+      // Case A: server-verifiable token_hash present → skip client verification,
+      // let the server verify + update in one atomic call.
+      if (t && (!type || type === "recovery")) {
+        if (cancelled) return;
+        setTokenHash(t);
+        setReady(true);
+        setVerifying(false);
+        return;
       }
-    })();
 
-    return () => {
-      cancelled = true;
-      sub.data.subscription.unsubscribe();
-    };
+      // Case B: PKCE `?code=...` — exchange for session (client-side flow),
+      // then let the user update the password using that live session.
+      if (code) {
+        const { error: exErr } = await supabase.auth.exchangeCodeForSession(code);
+        // clean the URL
+        const url = new URL(window.location.href);
+        url.searchParams.delete("code");
+        window.history.replaceState({}, "", url.pathname + url.search);
+        if (cancelled) return;
+        if (exErr) {
+          setError("রিসেট লিঙ্কটি অকার্যকর বা মেয়াদোত্তীর্ণ। নতুন লিঙ্ক নিন।");
+          setVerifying(false);
+          return;
+        }
+        setReady(true);
+        setVerifying(false);
+        return;
+      }
+
+      // Case C: Nothing usable in the URL — maybe a session already exists
+      // (rare — e.g. link opened in the same browser as sign-in).
+      const { data } = await supabase.auth.getSession();
+      if (cancelled) return;
+      if (data.session) {
+        setReady(true);
+      } else {
+        setError("রিসেট লিঙ্ক পাওয়া যায়নি। সাইন ইন পেজ থেকে নতুন করে চেষ্টা করুন।");
+      }
+      setVerifying(false);
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-
+  const canSubmit = useMemo(
+    () => ready && !busy && password.length >= 6 && password === confirm,
+    [ready, busy, password, confirm],
+  );
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,12 +113,22 @@ function ResetPasswordPage() {
     if (password !== confirm) return setError("দুটি পাসওয়ার্ড এক নয়।");
     setBusy(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password });
-      if (error) throw error;
-      setInfo("পাসওয়ার্ড আপডেট হয়েছে। কিছুক্ষণের মধ্যে হোমপেজে যাচ্ছি...");
-      setTimeout(() => navigate({ to: "/" }), 1200);
-    } catch (err: any) {
-      setError(err?.message ?? "পাসওয়ার্ড আপডেট করা যায়নি।");
+      if (tokenHash) {
+        // Server-side path — verifies token + updates password atomically.
+        await completeReset({ data: { token_hash: tokenHash, new_password: password } });
+        // Ensure the browser is signed out; user must sign in with the new password.
+        await supabase.auth.signOut();
+      } else {
+        // Client-session path (PKCE exchange or existing session).
+        const { error } = await supabase.auth.updateUser({ password });
+        if (error) throw error;
+        await supabase.auth.signOut();
+      }
+      setInfo("পাসওয়ার্ড আপডেট হয়েছে। এবার নতুন পাসওয়ার্ড দিয়ে সাইন ইন করুন।");
+      setTimeout(() => navigate({ to: "/auth" }), 1400);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "পাসওয়ার্ড আপডেট করা যায়নি।";
+      setError(msg);
     } finally {
       setBusy(false);
     }
@@ -167,7 +186,7 @@ function ResetPasswordPage() {
               </label>
               {error && <div className="text-[12.5px] bg-marigold-soft text-marigold rounded-xl px-3 py-2">{error}</div>}
               {info && <div className="text-[12.5px] bg-leaf-soft text-leaf rounded-xl px-3 py-2">{info}</div>}
-              <button type="submit" disabled={busy}
+              <button type="submit" disabled={!canSubmit}
                 className="mt-1 flex items-center justify-center gap-2 bg-leaf text-white font-bold text-[15px] rounded-2xl shadow-leaf active:scale-[0.98] transition-transform disabled:opacity-60"
                 style={{ height: 50 }}>
                 {busy && <Loader2 size={16} className="animate-spin" />}
