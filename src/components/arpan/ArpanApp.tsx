@@ -847,6 +847,7 @@ type ProfileRow = {
   display_name: string;
   area: string | null;
   district: string | null;
+  avatar_url: string | null;
   points: number;
   items_given: number;
   items_received: number;
@@ -879,15 +880,20 @@ function ActivityScreen({
   const [editing, setEditing] = useState(false);
   const [formName, setFormName] = useState("");
   const [formDistrict, setFormDistrict] = useState("");
+  const [formArea, setFormArea] = useState("");
   const [formPhone, setFormPhone] = useState("");
   const [formShowPhone, setFormShowPhone] = useState(false);
+  const [formAvatar, setFormAvatar] = useState("");
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileSuccess, setProfileSuccess] = useState(false);
+  const [brokenAvatar, setBrokenAvatar] = useState<string | null>(null);
 
   const loadProfile = useCallback(async () => {
     if (!user) { setProfile(null); return; }
     const { data, error } = await supabase
       .from("profiles")
-      .select("display_name, area, district, points, items_given, items_received, show_phone")
+      .select("display_name, area, district, avatar_url, points, items_given, items_received, show_phone")
       .eq("id", user.id)
       .maybeSingle();
     if (error) {
@@ -898,19 +904,19 @@ function ActivityScreen({
       setProfile(data as ProfileRow);
       setFormName(data.display_name ?? "");
       setFormDistrict(data.district ?? "");
+      setFormArea(data.area ?? "");
+      setFormAvatar(data.avatar_url ?? "");
       setFormShowPhone(!!data.show_phone);
       if (!data.district) setEditing(true);
     } else {
+      // No row yet — prefill the form; saveProfile's upsert creates the row.
       const fallbackName = user.user_metadata?.display_name ?? user.email?.split("@")[0] ?? "অর্পণ ব্যবহারকারী";
-      const { error: insErr } = await supabase.from("profiles").insert({
-        id: user.id,
-        display_name: fallbackName,
-      });
-      if (insErr) setProfileError(insErr.message);
-      else {
-        setEditing(true);
-        setFormName(fallbackName);
-      }
+      setFormName(fallbackName);
+      setFormDistrict("");
+      setFormArea("");
+      setFormAvatar(user.user_metadata?.avatar_url ?? "");
+      setFormShowPhone(false);
+      setEditing(true);
     }
     const { data: priv } = await supabase
       .from("profile_private")
@@ -944,8 +950,43 @@ function ActivityScreen({
     await Promise.all([refresh(), loadProfile()]);
   };
 
+  const uploadAvatar = async (file: File) => {
+    setProfileError(null);
+    if (!file.type.startsWith("image/")) {
+      setProfileError("শুধু ছবি আপলোড করুন।");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setProfileError("ছবির আকার ৫ MB এর কম হতে হবে।");
+      return;
+    }
+    setUploadingAvatar(true);
+    const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+    const path = `avatars/${user.id}/${crypto.randomUUID()}.${ext}`;
+    const { error: upErr } = await supabase.storage.from("post-photos").upload(path, file, {
+      contentType: file.type,
+      upsert: false,
+    });
+    if (upErr) {
+      setUploadingAvatar(false);
+      setProfileError(upErr.message);
+      return;
+    }
+    // The bucket is private, so a plain public URL would not load — use a long-lived signed URL.
+    const { data: signed, error: sErr } = await supabase.storage
+      .from("post-photos")
+      .createSignedUrl(path, 60 * 60 * 24 * 365 * 10);
+    setUploadingAvatar(false);
+    if (sErr || !signed?.signedUrl) {
+      setProfileError(sErr?.message ?? "ছবির লিংক তৈরি করা যায়নি।");
+      return;
+    }
+    setFormAvatar(signed.signedUrl);
+  };
+
   const saveProfile = async () => {
     setProfileError(null);
+    setProfileSuccess(false);
     if (!formName.trim()) {
       setProfileError("নাম দিন।");
       return;
@@ -956,11 +997,15 @@ function ActivityScreen({
       return;
     }
     setSavingProfile(true);
-    const { error } = await supabase.from("profiles").update({
+    const { error } = await supabase.from("profiles").upsert({
+      id: user.id,
       display_name: formName.trim(),
       district: formDistrict || null,
+      area: formArea.trim() || null,
       show_phone: formShowPhone,
-    }).eq("id", user.id);
+      avatar_url: formAvatar || null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "id" });
     if (error) {
       setSavingProfile(false);
       setProfileError(error.message);
@@ -969,14 +1014,18 @@ function ActivityScreen({
     const { error: pErr } = await supabase.from("profile_private").upsert({
       id: user.id,
       phone: phoneTrim || null,
-    });
+    }, { onConflict: "id" });
     setSavingProfile(false);
     if (pErr) {
       setProfileError(pErr.message);
       return;
     }
-    setEditing(false);
+    setProfileSuccess(true);
     await loadProfile();
+    setTimeout(() => {
+      setProfileSuccess(false);
+      setEditing(false);
+    }, 2000);
   };
 
   const name = profile?.display_name ?? user.email?.split("@")[0] ?? "অর্পণ ব্যবহারকারী";
@@ -991,12 +1040,23 @@ function ActivityScreen({
       <div className="bg-leaf relative overflow-hidden" style={{ padding: "52px 18px 26px" }}>
         <div className="absolute inset-x-0 bottom-0 stitch-row opacity-70" />
         <div className="flex items-center gap-3">
-          <div
-            className="flex items-center justify-center rounded-full bg-white text-leaf font-bold font-display shadow-petal"
-            style={{ width: 56, height: 56, fontSize: 24 }}
-          >
-            {name[0]}
-          </div>
+          {profile?.avatar_url && brokenAvatar !== profile.avatar_url ? (
+            <img
+              src={profile.avatar_url}
+              alt={name}
+              referrerPolicy="no-referrer"
+              onError={() => setBrokenAvatar(profile.avatar_url)}
+              className="rounded-full object-cover bg-white shadow-petal shrink-0"
+              style={{ width: 56, height: 56 }}
+            />
+          ) : (
+            <div
+              className="flex items-center justify-center rounded-full bg-white text-leaf font-bold font-display shadow-petal"
+              style={{ width: 56, height: 56, fontSize: 24 }}
+            >
+              {name[0]}
+            </div>
+          )}
           <div className="flex-1">
             <h1 className="text-white font-bold text-[18px] font-display">{name}</h1>
             <div className="flex items-center gap-1.5 text-marigold-soft text-[13px]">
@@ -1049,6 +1109,44 @@ function ActivityScreen({
             <div className="font-display font-semibold text-[15px] text-ink">
               {profile?.district ? "প্রোফাইল সম্পাদনা" : "প্রোফাইল সম্পূর্ণ করুন"}
             </div>
+            <div className="flex justify-center">
+              <label
+                className="relative cursor-pointer rounded-full"
+                style={{ width: 88, height: 88 }}
+                aria-label="প্রোফাইল ছবি পরিবর্তন করুন"
+              >
+                {formAvatar && brokenAvatar !== formAvatar ? (
+                  <img
+                    src={formAvatar}
+                    alt="প্রোফাইল ছবি"
+                    referrerPolicy="no-referrer"
+                    onError={() => setBrokenAvatar(formAvatar)}
+                    className="w-full h-full rounded-full object-cover border border-border"
+                  />
+                ) : (
+                  <div
+                    className="w-full h-full flex items-center justify-center rounded-full bg-leaf-soft text-leaf font-bold font-display"
+                    style={{ fontSize: 34 }}
+                  >
+                    {(formName.trim() || name)[0]}
+                  </div>
+                )}
+                <span className="absolute bottom-0 right-0 flex items-center justify-center rounded-full bg-leaf text-white border-2 border-card" style={{ width: 30, height: 30 }}>
+                  {uploadingAvatar ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uploadingAvatar}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) uploadAvatar(f);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
             <div>
               <div className="text-[12.5px] text-ink-soft mb-1">পুরো নাম</div>
               <input
@@ -1068,6 +1166,15 @@ function ActivityScreen({
                 <option value="">— জেলা নির্বাচন করুন —</option>
                 {BD_DISTRICTS.map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
+            </div>
+            <div>
+              <div className="text-[12.5px] text-ink-soft mb-1">এলাকা / মহল্লা</div>
+              <input
+                value={formArea}
+                onChange={(e) => setFormArea(e.target.value)}
+                placeholder="যেমন: মিরপুর ১০"
+                className="w-full h-11 rounded-xl border border-border bg-paper px-3 text-sm outline-none focus:border-leaf"
+              />
             </div>
             <div>
               <div className="text-[12.5px] text-ink-soft mb-1">মোবাইল নম্বর</div>
@@ -1092,18 +1199,23 @@ function ActivityScreen({
             <div className="flex gap-2">
               <button
                 onClick={saveProfile}
-                disabled={savingProfile || !formName.trim()}
+                disabled={savingProfile || uploadingAvatar || !formName.trim()}
                 className="flex-1 h-11 rounded-xl bg-leaf text-white font-bold text-sm disabled:opacity-60 flex items-center justify-center gap-2"
               >
                 {savingProfile && <Loader2 size={14} className="animate-spin" />} সংরক্ষণ
               </button>
               <button
-                onClick={() => { setEditing(false); setProfileError(null); }}
+                onClick={() => { setEditing(false); setProfileError(null); setProfileSuccess(false); }}
                 className="px-4 h-11 rounded-xl border border-border text-ink-soft text-sm"
               >
                 বাতিল
               </button>
             </div>
+            {profileSuccess && (
+              <div role="status" className="text-[12.5px] bg-leaf-soft text-leaf font-semibold rounded-xl px-3 py-2">
+                প্রোফাইল সংরক্ষিত হয়েছে ✓
+              </div>
+            )}
             {profileError && (
               <div className="text-[12.5px] bg-marigold-soft text-marigold rounded-xl px-3 py-2">
                 {profileError}
