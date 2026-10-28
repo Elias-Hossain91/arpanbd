@@ -159,6 +159,7 @@ export function ArpanApp() {
             favorites={favorites}
             toggleFavorite={toggleFavorite}
             goAuth={() => navigate({ to: "/auth" })}
+            onNotificationClick={() => setScreen("notifications")}
           />
         )}
         {screen === "detail" && selected && (
@@ -251,13 +252,14 @@ function PostBtn({ onClick }: { onClick: () => void }) {
 /* -------------------- HOME -------------------- */
 
 function HomeScreen({
-  list, loading, activeCat, setActiveCat, query, setQuery, district, setDistrict, open, user, favorites, toggleFavorite, goAuth,
+  list, loading, activeCat, setActiveCat, query, setQuery, district, setDistrict, open, user, favorites, toggleFavorite, goAuth, onNotificationClick,
 }: {
   list: Item[]; loading: boolean; activeCat: string; setActiveCat: (v: string) => void;
   query: string; setQuery: (v: string) => void;
   district: string; setDistrict: (v: string) => void;
   open: (i: Item) => void;
   user: any; favorites: Set<string>; toggleFavorite: (i: Item) => void; goAuth: () => void;
+  onNotificationClick: () => void;
 }) {
   return (
     <div>
@@ -285,6 +287,7 @@ function HomeScreen({
             {user ? (
               <button
                 aria-label="Notifications"
+                onClick={onNotificationClick}
                 className="flex items-center justify-center rounded-full bg-paper border border-border relative"
                 style={{ width: 36, height: 36 }}
               >
