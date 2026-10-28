@@ -887,6 +887,7 @@ function ActivityScreen({
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSuccess, setProfileSuccess] = useState(false);
+  const [brokenAvatar, setBrokenAvatar] = useState<string | null>(null);
 
   const loadProfile = useCallback(async () => {
     if (!user) { setProfile(null); return; }
@@ -1039,10 +1040,12 @@ function ActivityScreen({
       <div className="bg-leaf relative overflow-hidden" style={{ padding: "52px 18px 26px" }}>
         <div className="absolute inset-x-0 bottom-0 stitch-row opacity-70" />
         <div className="flex items-center gap-3">
-          {profile?.avatar_url ? (
+          {profile?.avatar_url && brokenAvatar !== profile.avatar_url ? (
             <img
               src={profile.avatar_url}
               alt={name}
+              referrerPolicy="no-referrer"
+              onError={() => setBrokenAvatar(profile.avatar_url)}
               className="rounded-full object-cover bg-white shadow-petal shrink-0"
               style={{ width: 56, height: 56 }}
             />
@@ -1112,10 +1115,12 @@ function ActivityScreen({
                 style={{ width: 88, height: 88 }}
                 aria-label="প্রোফাইল ছবি পরিবর্তন করুন"
               >
-                {formAvatar ? (
+                {formAvatar && brokenAvatar !== formAvatar ? (
                   <img
                     src={formAvatar}
                     alt="প্রোফাইল ছবি"
+                    referrerPolicy="no-referrer"
+                    onError={() => setBrokenAvatar(formAvatar)}
                     className="w-full h-full rounded-full object-cover border border-border"
                   />
                 ) : (
