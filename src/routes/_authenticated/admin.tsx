@@ -110,8 +110,8 @@ const postsQuery = queryOptions({
 /* ---------------- Route ---------------- */
 
 export const Route = createFileRoute("/_authenticated/admin")({
-  validateSearch: (search: Record<string, unknown>): { tab: Tab } => ({
-    tab: TABS.some((t) => t.id === search.tab) ? (search.tab as Tab) : "overview",
+  validateSearch: (search: Record<string, unknown>): { tab?: Tab } => ({
+    tab: TABS.some((t) => t.id === search.tab) ? (search.tab as Tab) : undefined,
   }),
   loader: async ({ context }) => {
     const isAdmin = await context.queryClient.ensureQueryData(isAdminQuery(context.userId));
@@ -178,7 +178,7 @@ function AccessDenied() {
 }
 
 function Dashboard() {
-  const { tab } = Route.useSearch();
+  const tab: Tab = Route.useSearch().tab ?? "overview";
   const navigate = Route.useNavigate();
 
   return (
