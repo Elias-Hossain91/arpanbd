@@ -5,8 +5,12 @@ import { isAdminQuery } from "@/lib/admin";
 import {
   Search, MapPin, Heart, Plus, Home, User,
   ChevronLeft, MessageCircle, ShieldCheck, Sprout, Camera, Award, Check, Bell,
-  LogOut, Trash2, Loader2,
+  LogOut, Trash2, Loader2, Pencil,
 } from "lucide-react";
+import { toast } from "sonner";
+import {
+  Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription,
+} from "@/components/ui/drawer";
 import { ITEMS as SAMPLE_ITEMS, CATS, tileBg, type ArpanItem } from "@/data/arpan";
 import { Logo, Stitch, Tag } from "@/components/arpan/brand";
 import { supabase } from "@/integrations/supabase/client";
@@ -891,9 +895,10 @@ function ActivityScreen({
   const [formAvatar, setFormAvatar] = useState("");
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
-  const [profileSuccess, setProfileSuccess] = useState(false);
   const [brokenAvatar, setBrokenAvatar] = useState<string | null>(null);
-  const { data: isAdmin } = useQuery({ ...isAdminQuery(user?.id), enabled: !!user });
+  // Admin link only shows once the role check has positively confirmed 'admin' — undefined while loading or on error.
+  const { data: isAdminData } = useQuery({ ...isAdminQuery(user?.id), enabled: !!user });
+  const isAdmin = !!user && isAdminData === true;
 
   const loadProfile = useCallback(async () => {
     if (!user) { setProfile(null); return; }
@@ -913,7 +918,6 @@ function ActivityScreen({
       setFormArea(data.area ?? "");
       setFormAvatar(data.avatar_url ?? "");
       setFormShowPhone(!!data.show_phone);
-      if (!data.district) setEditing(true);
     } else {
       // No row yet — prefill the form; saveProfile's upsert creates the row.
       const fallbackName = user.user_metadata?.display_name ?? user.email?.split("@")[0] ?? "অর্পণ ব্যবহারকারী";
@@ -922,7 +926,6 @@ function ActivityScreen({
       setFormArea("");
       setFormAvatar(user.user_metadata?.avatar_url ?? "");
       setFormShowPhone(false);
-      setEditing(true);
     }
     const { data: priv } = await supabase
       .from("profile_private")
@@ -992,7 +995,6 @@ function ActivityScreen({
 
   const saveProfile = async () => {
     setProfileError(null);
-    setProfileSuccess(false);
     if (!formName.trim()) {
       setProfileError("নাম দিন।");
       return;
@@ -1026,12 +1028,21 @@ function ActivityScreen({
       setProfileError(pErr.message);
       return;
     }
-    setProfileSuccess(true);
     await loadProfile();
-    setTimeout(() => {
-      setProfileSuccess(false);
-      setEditing(false);
-    }, 2000);
+    setEditing(false);
+    toast.success("প্রোফাইল সংরক্ষিত হয়েছে ✓");
+  };
+
+  const openEditor = () => {
+    if (profile) {
+      setFormName(profile.display_name ?? "");
+      setFormDistrict(profile.district ?? "");
+      setFormArea(profile.area ?? "");
+      setFormAvatar(profile.avatar_url ?? "");
+      setFormShowPhone(!!profile.show_phone);
+    }
+    setProfileError(null);
+    setEditing(true);
   };
 
   const name = profile?.display_name ?? user.email?.split("@")[0] ?? "অর্পণ ব্যবহারকারী";
@@ -1066,16 +1077,18 @@ function ActivityScreen({
           <div className="flex-1">
             <h1 className="text-white font-bold text-[18px] font-display">{name}</h1>
             <div className="flex items-center gap-1.5 text-marigold-soft text-[13px]">
-              <MapPin size={12} /> {profile?.district ?? "জেলা সেট করুন"}
+              <MapPin size={12} />{" "}
+              {[profile?.area, profile?.district].filter(Boolean).join(", ") || "জেলা সেট করুন"}
             </div>
           </div>
           <button
-            onClick={signOut}
-            className="flex items-center justify-center rounded-full bg-white/20 text-white"
+            onClick={openEditor}
+            className="flex items-center justify-center rounded-full bg-white/20 text-white shrink-0"
             style={{ width: 36, height: 36 }}
-            aria-label="Sign out"
+            aria-label="প্রোফাইল সম্পাদনা"
+            title="প্রোফাইল সম্পাদনা"
           >
-            <LogOut size={16} />
+            <Pencil size={16} />
           </button>
         </div>
 
@@ -1116,13 +1129,22 @@ function ActivityScreen({
         </div>
       </div>
 
-      {/* Profile setup / edit card */}
-      <div className="px-4 pt-4">
-        {editing ? (
-          <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
-            <div className="font-display font-semibold text-[15px] text-ink">
+      {/* Profile edit drawer */}
+      <Drawer
+        open={editing}
+        onOpenChange={(o) => { setEditing(o); if (!o) setProfileError(null); }}
+        shouldScaleBackground={false}
+      >
+        <DrawerContent className="bg-card max-h-[92vh] mx-auto w-full max-w-3xl">
+          <DrawerHeader className="text-left">
+            <DrawerTitle className="font-display text-ink">
               {profile?.district ? "প্রোফাইল সম্পাদনা" : "প্রোফাইল সম্পূর্ণ করুন"}
-            </div>
+            </DrawerTitle>
+            <DrawerDescription className="text-ink-soft text-[12.5px]">
+              নাম · জেলা · এলাকা · ফোন দেখানোর সেটিং
+            </DrawerDescription>
+          </DrawerHeader>
+          <div className="px-4 pb-6 space-y-3 overflow-y-auto">
             <div className="flex justify-center">
               <label
                 className="relative cursor-pointer rounded-full"
@@ -1219,38 +1241,27 @@ function ActivityScreen({
                 {savingProfile && <Loader2 size={14} className="animate-spin" />} সংরক্ষণ
               </button>
               <button
-                onClick={() => { setEditing(false); setProfileError(null); setProfileSuccess(false); }}
+                onClick={() => { setEditing(false); setProfileError(null); }}
                 className="px-4 h-11 rounded-xl border border-border text-ink-soft text-sm"
               >
                 বাতিল
               </button>
             </div>
-            {profileSuccess && (
-              <div role="status" className="text-[12.5px] bg-leaf-soft text-leaf font-semibold rounded-xl px-3 py-2">
-                প্রোফাইল সংরক্ষিত হয়েছে ✓
-              </div>
-            )}
             {profileError && (
               <div className="text-[12.5px] bg-marigold-soft text-marigold rounded-xl px-3 py-2">
                 {profileError}
               </div>
             )}
           </div>
-        ) : (
-          <button
-            onClick={() => setEditing(true)}
-            className="w-full text-left bg-marigold-soft rounded-2xl p-3 flex items-center gap-3"
-          >
-            <Sprout size={28} className="text-marigold shrink-0" />
-            <div className="flex-1">
-              <div className="font-bold text-[14px] text-ink">প্রোফাইল সম্পাদনা</div>
-              <div className="text-[12px] text-ink-soft">
-                নাম · জেলা · ফোন দেখানোর সেটিং
-              </div>
-            </div>
-          </button>
-        )}
-      </div>
+            <button
+              onClick={signOut}
+              className="w-full h-11 rounded-xl text-ink-soft text-sm flex items-center justify-center gap-2"
+            >
+              <LogOut size={14} /> সাইন আউট
+            </button>
+          </div>
+        </DrawerContent>
+      </Drawer>
 
       <div className="px-4 pt-5">
         <div className="font-display font-semibold text-[16px] text-ink mb-2">আপনার পোস্ট</div>
