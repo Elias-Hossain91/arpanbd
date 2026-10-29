@@ -1252,7 +1252,6 @@ function ActivityScreen({
                 {profileError}
               </div>
             )}
-          </div>
             <button
               onClick={signOut}
               className="w-full h-11 rounded-xl text-ink-soft text-sm flex items-center justify-center gap-2"
