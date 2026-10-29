@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { isAdminQuery } from "@/lib/admin";
 import {
   Search, MapPin, Heart, Plus, Home, User,
   ChevronLeft, MessageCircle, ShieldCheck, Sprout, Camera, Award, Check, Bell,
@@ -891,6 +893,7 @@ function ActivityScreen({
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSuccess, setProfileSuccess] = useState(false);
   const [brokenAvatar, setBrokenAvatar] = useState<string | null>(null);
+  const { data: isAdmin } = useQuery({ ...isAdminQuery(user?.id), enabled: !!user });
 
   const loadProfile = useCallback(async () => {
     if (!user) { setProfile(null); return; }
@@ -1092,6 +1095,14 @@ function ActivityScreen({
               />
             </div>
           </div>
+        )}
+        {isAdmin && (
+          <Link
+            to="/admin"
+            className="relative mt-3 inline-block text-[13px] font-semibold text-marigold-soft underline underline-offset-4"
+          >
+            অ্যাডমিন প্যানেল →
+          </Link>
         )}
       </div>
       <Stitch />
