@@ -18,7 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 type Screen = "home" | "detail" | "post" | "activity" | "messages" | "notifications";
 
-type Item = ArpanItem & { _db?: boolean; _userId?: string };
+type Item = ArpanItem & { _db?: boolean; _userId?: string; photos?: string[]; status?: string };
 
 function timeAgoBn(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -50,7 +50,7 @@ export function ArpanApp() {
     setLoading(true);
     const { data: posts } = await supabase
       .from("posts")
-      .select("id,user_id,title_bn,title_en,category,emoji,tile,area,condition,note,created_at")
+      .select("id,user_id,title_bn,title_en,category,emoji,tile,area,condition,note,created_at,photos,status")
       .order("created_at", { ascending: false });
     const userIds = Array.from(new Set((posts ?? []).map((p: any) => p.user_id)));
     let profileMap: Record<string, string> = {};
@@ -73,6 +73,8 @@ export function ArpanApp() {
       giver: profileMap[r.user_id] ?? "অর্পণ ব্যবহারকারী",
       note: r.note ?? "",
       postedAgo: timeAgoBn(r.created_at),
+      photos: Array.isArray(r.photos) ? r.photos : [],
+      status: r.status ?? "available",
       _db: true,
       _userId: r.user_id,
     }));
@@ -96,8 +98,12 @@ export function ArpanApp() {
     loadFavorites();
   }, [loadFavorites]);
 
+  // বাগ ৩ ঠিক: আসল পোস্ট থাকলে নমুনা ডেটা লুকাও; না থাকলে প্রথমবার দেখানোর জন্য নমুনা ব্যবহার করো
   const allItems = useMemo<Item[]>(
-    () => [...dbItems, ...SAMPLE_ITEMS.map((i) => ({ ...i, id: `s-${i.id}` as any, _db: false }))],
+    () =>
+      dbItems.length > 0
+        ? dbItems
+        : SAMPLE_ITEMS.map((i) => ({ ...i, id: `s-${i.id}` as any, _db: false })),
     [dbItems],
   );
 
@@ -426,6 +432,20 @@ function DetailScreen({
   item: Item; back: () => void; isFavorite: boolean; onToggleFav: () => void; canFav: boolean;
 }) {
   const [requested, setRequested] = useState(false);
+  // বাগ ১ ঠিক: ছবির path থেকে signed URL তৈরি করো
+  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
+  const [photoIdx, setPhotoIdx] = useState(0);
+  useEffect(() => {
+    if (!item.photos || item.photos.length === 0) return;
+    const paths = item.photos;
+    supabase.storage
+      .from("post-photos")
+      .createSignedUrls(paths, 60 * 60 * 24 * 365) // ১ বছর মেয়াদ
+      .then(({ data }) => {
+        if (data) setPhotoUrls(data.map((d: any) => d.signedUrl).filter(Boolean));
+      });
+  }, [item.id, item.photos]);
+
   return (
     <div>
       <div className={`${tileBg(item.tile)}`} style={{ padding: "48px 18px 28px" }}>
@@ -449,7 +469,29 @@ function DetailScreen({
             </button>
           )}
         </div>
-        <div className="flex items-center justify-center" style={{ fontSize: 104 }}>{item.emoji}</div>
+        {photoUrls.length > 0 ? (
+          <div className="relative">
+            <img
+              src={photoUrls[photoIdx]}
+              alt={item.bn}
+              className="w-full rounded-2xl object-cover"
+              style={{ maxHeight: 260 }}
+            />
+            {photoUrls.length > 1 && (
+              <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5">
+                {photoUrls.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setPhotoIdx(i)}
+                    className={`rounded-full transition-all ${i === photoIdx ? "bg-white w-5 h-2" : "bg-white/50 w-2 h-2"}`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center justify-center" style={{ fontSize: 104 }}>{item.emoji}</div>
+        )}
       </div>
       <Stitch />
 
@@ -570,7 +612,8 @@ function PostScreen({ user, goAuth, onDone }: { user: any; goAuth: () => void; o
           upsert: false,
         });
         if (error) { setErr(error.message); continue; }
-        const { data: signed } = await supabase.storage.from("post-photos").createSignedUrl(path, 60 * 60);
+        // বাগ ৪ ঠিক: ১ ঘণ্টার বদলে ১ বছর মেয়াদি URL (preview-এর জন্য)
+        const { data: signed } = await supabase.storage.from("post-photos").createSignedUrl(path, 60 * 60 * 24 * 365);
         uploaded.push({ path, preview: signed?.signedUrl ?? URL.createObjectURL(file) });
       }
       setPhotos((p) => [...p, ...uploaded].slice(0, 3));
@@ -1049,7 +1092,7 @@ function ActivityScreen({
   const points = profile?.points ?? 0;
   const badge = badgeFor(points);
   const next = nextBadge(points);
-  const activePosts = myPosts.filter((p) => p.cond !== "collected"); // visual list — status not in Item type, so show all
+  const activePosts = myPosts.filter((p) => p.status !== "collected"); // বাগ ২ ঠিক: status দিয়ে ফিল্টার করো
   const collectedCount = profile?.items_given ?? 0;
 
   return (
