@@ -15,6 +15,7 @@ import { ITEMS as SAMPLE_ITEMS, CATS, tileBg, type ArpanItem } from "@/data/arpa
 import { Logo, Stitch, Tag } from "@/components/arpan/brand";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
 
 type Screen = "home" | "detail" | "post" | "activity" | "messages" | "notifications";
 
@@ -56,11 +57,8 @@ export function ArpanApp() {
     const userIds = Array.from(new Set((posts ?? []).map((p: any) => p.user_id)));
     let profileMap: Record<string, string> = {};
     if (userIds.length) {
-      const { data: profs } = await supabase
-        .from("profiles")
-        .select("id,display_name")
-        .in("id", userIds);
-      profileMap = Object.fromEntries((profs ?? []).map((p: any) => [p.id, p.display_name]));
+      const { data: profs } = await supabase.rpc("visible_giver_names", { _user_ids: userIds });
+      profileMap = Object.fromEntries((profs ?? []).map((p) => [p.profile_id, p.display_name]));
     }
     const mapped: Item[] = (posts ?? []).map((r: any) => ({
       id: r.id,
@@ -216,6 +214,18 @@ export function ArpanApp() {
             isFavorite={selected._db ? favorites.has(String(selected.id)) : false}
             onToggleFav={() => toggleFavorite(selected)}
             canFav={!!selected._db}
+            canCollect={!!user && !!selected._db && selected._userId !== user.id && selected.status === "available"}
+            onCollect={async () => {
+              const { error } = await supabase.rpc("mark_post_collected", { _post_id: String(selected.id) });
+              if (error) {
+                toast.error(error.message);
+                return;
+              }
+              await loadPosts();
+              setSelected(null);
+              setScreen("home");
+              toast.success("সংগ্রহ সম্পন্ন হয়েছে");
+            }}
           />
         )}
         {screen === "post" && (
@@ -462,11 +472,13 @@ function HomeScreen({
 /* -------------------- DETAIL -------------------- */
 
 function DetailScreen({
-  item, back, isFavorite, onToggleFav, canFav,
+  item, back, isFavorite, onToggleFav, canFav, canCollect, onCollect,
 }: {
   item: Item; back: () => void; isFavorite: boolean; onToggleFav: () => void; canFav: boolean;
+  canCollect: boolean; onCollect: () => Promise<void>;
 }) {
   const [requested, setRequested] = useState(false);
+  const [collecting, setCollecting] = useState(false);
   // বাগ ১ ঠিক: ছবির path থেকে signed URL তৈরি করো
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [photoIdx, setPhotoIdx] = useState(0);
@@ -475,7 +487,7 @@ function DetailScreen({
     const paths = item.photos;
     supabase.storage
       .from("post-photos")
-      .createSignedUrls(paths, 60 * 60 * 24 * 365) // ১ বছর মেয়াদ
+      .createSignedUrls(paths, 60 * 60)
       .then(({ data }) => {
         if (data) setPhotoUrls(data.map((d: any) => d.signedUrl).filter(Boolean));
       });
@@ -591,6 +603,23 @@ function DetailScreen({
             দাতার সাথে চ্যাটে সংগ্রহের সময় ঠিক করুন। নিরাপত্তার জন্য খোলা জায়গায় দেখা করুন।
           </div>
         )}
+        {canCollect && (
+          <Button
+            type="button"
+            disabled={collecting}
+            onClick={async () => {
+              setCollecting(true);
+              try {
+                await onCollect();
+              } finally {
+                setCollecting(false);
+              }
+            }}
+            className="mt-3 h-12 w-full rounded-xl font-bold"
+          >
+            <Check size={16} /> {collecting ? "সংগ্রহ নিশ্চিত হচ্ছে…" : "আমি জিনিসটি সংগ্রহ করেছি"}
+          </Button>
+        )}
         <div className="h-6" />
       </div>
     </div>
@@ -647,9 +676,7 @@ function PostScreen({ user, goAuth, onDone }: { user: any; goAuth: () => void; o
           upsert: false,
         });
         if (error) { setErr(error.message); continue; }
-        // বাগ ৪ ঠিক: ১ ঘণ্টার বদলে ১ বছর মেয়াদি URL (preview-এর জন্য)
-        const { data: signed } = await supabase.storage.from("post-photos").createSignedUrl(path, 60 * 60 * 24 * 365);
-        uploaded.push({ path, preview: signed?.signedUrl ?? URL.createObjectURL(file) });
+        uploaded.push({ path, preview: URL.createObjectURL(file) });
       }
       setPhotos((p) => [...p, ...uploaded].slice(0, 3));
     } finally {
@@ -661,6 +688,7 @@ function PostScreen({ user, goAuth, onDone }: { user: any; goAuth: () => void; o
     const ph = photos[idx];
     setPhotos((p) => p.filter((_, i) => i !== idx));
     if (ph) await supabase.storage.from("post-photos").remove([ph.path]);
+    if (ph?.preview.startsWith("blob:")) URL.revokeObjectURL(ph.preview);
   };
 
   const detectLocation = () => {
@@ -957,6 +985,26 @@ function nextBadge(points: number) {
   return higher[0];
 }
 
+function avatarStoragePath(value: string | null | undefined): string | null {
+  if (!value) return null;
+  if (value.startsWith("avatars/")) return value;
+  try {
+    const url = new URL(value);
+    const marker = "/storage/v1/object/sign/post-photos/";
+    const pathStart = url.pathname.indexOf(marker);
+    return pathStart >= 0 ? decodeURIComponent(url.pathname.slice(pathStart + marker.length)) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function displayAvatarUrl(value: string | null): Promise<string | null> {
+  const path = avatarStoragePath(value);
+  if (!path) return value;
+  const { data, error } = await supabase.storage.from("post-photos").createSignedUrl(path, 60 * 60);
+  return error ? null : data.signedUrl;
+}
+
 function ActivityScreen({
   user, myPosts, favCount, signOut, goAuth, refresh,
 }: {
@@ -990,11 +1038,12 @@ function ActivityScreen({
       return;
     }
     if (data) {
-      setProfile(data as ProfileRow);
+      const displayAvatar = await displayAvatarUrl(data.avatar_url);
+      setProfile({ ...data, avatar_url: displayAvatar } as ProfileRow);
       setFormName(data.display_name ?? "");
       setFormDistrict(data.district ?? "");
       setFormArea(data.area ?? "");
-      setFormAvatar(data.avatar_url ?? "");
+      setFormAvatar(displayAvatar ?? "");
       setFormShowPhone(!!data.show_phone);
     } else {
       // No row yet — prefill the form; saveProfile's upsert creates the row.
@@ -1028,13 +1077,20 @@ function ActivityScreen({
   }
 
   const deletePost = async (id: string) => {
-    await supabase.from("posts").delete().eq("id", id);
+    const post = myPosts.find((item) => String(item.id) === id);
+    if (post?.photos?.length) {
+      const { error: photoError } = await supabase.storage.from("post-photos").remove(post.photos);
+      if (photoError) {
+        toast.error("পোস্টের ছবি সরানো যায়নি; পোস্টটি মোছা হয়নি।");
+        return;
+      }
+    }
+    const { error } = await supabase.from("posts").delete().eq("id", id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     await refresh();
-  };
-
-  const markCollected = async (id: string) => {
-    await supabase.from("posts").update({ status: "collected" }).eq("id", id);
-    await Promise.all([refresh(), loadProfile()]);
   };
 
   const uploadAvatar = async (file: File) => {
@@ -1059,10 +1115,9 @@ function ActivityScreen({
       setProfileError(upErr.message);
       return;
     }
-    // The bucket is private, so a plain public URL would not load — use a long-lived signed URL.
     const { data: signed, error: sErr } = await supabase.storage
       .from("post-photos")
-      .createSignedUrl(path, 60 * 60 * 24 * 365 * 10);
+      .createSignedUrl(path, 60 * 60);
     setUploadingAvatar(false);
     if (sErr || !signed?.signedUrl) {
       setProfileError(sErr?.message ?? "ছবির লিংক তৈরি করা যায়নি।");
@@ -1083,13 +1138,15 @@ function ActivityScreen({
       return;
     }
     setSavingProfile(true);
+    const previousAvatarPath = avatarStoragePath(profile?.avatar_url);
+    const nextAvatarPath = avatarStoragePath(formAvatar);
     const { error } = await supabase.from("profiles").upsert({
       id: user.id,
       display_name: formName.trim(),
       district: formDistrict || null,
       area: formArea.trim() || null,
       show_phone: formShowPhone,
-      avatar_url: formAvatar || null,
+      avatar_url: nextAvatarPath ?? (formAvatar.trim() || null),
       updated_at: new Date().toISOString(),
     }, { onConflict: "id" });
     if (error) {
@@ -1105,6 +1162,10 @@ function ActivityScreen({
     if (pErr) {
       setProfileError(pErr.message);
       return;
+    }
+    if (previousAvatarPath && previousAvatarPath !== nextAvatarPath) {
+      const { error: oldAvatarError } = await supabase.storage.from("post-photos").remove([previousAvatarPath]);
+      if (oldAvatarError) toast.error("প্রোফাইল সংরক্ষিত হয়েছে, তবে আগের ছবিটি সরানো যায়নি।");
     }
     await loadProfile();
     setEditing(false);
@@ -1356,14 +1417,6 @@ function ActivityScreen({
                 <div className="text-[14px] font-semibold text-ink truncate">{h.bn}</div>
                 <div className="text-[12px] text-ink-soft">{h.area} · {h.postedAgo}</div>
               </div>
-              <button
-                onClick={() => markCollected(String(h.id))}
-                className="text-leaf hover:bg-leaf-soft p-2 rounded-lg"
-                aria-label="Mark as collected"
-                title="সংগৃহীত হিসেবে চিহ্নিত করুন (+২০)"
-              >
-                <Check size={16} />
-              </button>
               <button
                 onClick={() => deletePost(String(h.id))}
                 className="text-ink-soft hover:text-marigold p-2"

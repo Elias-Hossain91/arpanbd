@@ -3,13 +3,18 @@
   "sdk_version": "0.20.0",
   "path": "/mcp",
   "auth": {
-    "type": "none"
+    "type": "oauth",
+    "issuer": "https://phhwbyytlrooccqxtedk.supabase.co/auth/v1",
+    "require_oauth_client_claim": true,
+    "accepted_audiences": [
+      "authenticated"
+    ]
   },
   "mcp": {
     "server": {
-      "name": "arpan-mcp",
+      "name": "app-refined",
       "version": "0.1.0",
-      "title": "Arpan — Community Sharing"
+      "title": "App Refined"
     },
     "tools": [
       {

@@ -96,7 +96,7 @@ const postsQuery = queryOptions({
   queryFn: async () => {
     const { data, error } = await supabase
       .from("posts")
-      .select("id, title_bn, emoji, category, area, status, user_id, created_at")
+      .select("id, title_bn, emoji, category, area, status, user_id, created_at, photos")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     const posts = data ?? [];
@@ -443,6 +443,15 @@ function PostsTab() {
   async function confirmDelete() {
     if (!toDelete) return;
     setDeleting(true);
+    const post = data.find((item) => item.id === toDelete.id);
+    if (post?.photos?.length) {
+      const { error: photoError } = await supabase.storage.from("post-photos").remove(post.photos);
+      if (photoError) {
+        setDeleting(false);
+        toast.error("পোস্টের ছবি সরানো যায়নি; পোস্টটি মোছা হয়নি।");
+        return;
+      }
+    }
     const { data: removed, error } = await supabase
       .from("posts")
       .delete()

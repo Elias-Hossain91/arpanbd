@@ -196,6 +196,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      mark_post_collected: { Args: { _post_id: string }; Returns: undefined }
+      visible_giver_names: {
+        Args: { _user_ids: string[] }
+        Returns: {
+          display_name: string
+          profile_id: string
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

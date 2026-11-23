@@ -11,6 +11,8 @@ export const Route = createFileRoute("/")({
           "ঢাকায় প্রতিবেশীদের সাথে বিনামূল্যে জিনিস দিন ও সংগ্রহ করুন। অর্পণ একটি বাংলা কমিউনিটি শেয়ারিং অ্যাপ — দিন যা লাগবে না, নিন যা দরকার।",
       },
       { property: "og:title", content: "অর্পণ — ঢাকায় বিনামূল্যে দান ও সংগ্রহ" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       {
         property: "og:description",
         content: "দিন যা লাগবে না · নিন যা দরকার · সবই বিনামূল্যে। ঢাকার প্রতিবেশীদের জন্য বাংলা কমিউনিটি শেয়ারিং অ্যাপ।",

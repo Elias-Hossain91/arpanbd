@@ -1,18 +1,25 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { useAuth } from "@/hooks/useAuth";
 import { Logo, Stitch } from "@/components/arpan/brand";
 import { Lock, User as UserIcon, Mail, ChevronLeft, Loader2 } from "lucide-react";
+import { oauthReturnPath } from "@/lib/oauth-return-path";
 
 export const Route = createFileRoute("/auth")({
+  validateSearch: (search: Record<string, unknown>): { next?: string } => {
+    const next = search["next"];
+    return typeof next === "string" ? { next } : {};
+  },
   head: () => ({
     meta: [
       { title: "সাইন ইন · অর্পণ" },
       { name: "description", content: "অর্পণে ইমেইল ও পাসওয়ার্ড অথবা Google দিয়ে সাইন ইন করুন।" },
       { property: "og:title", content: "সাইন ইন · অর্পণ" },
       { property: "og:description", content: "ইমেইল ও পাসওয়ার্ড অথবা Google দিয়ে অর্পণে যোগ দিন।" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { property: "og:url", content: "https://arpanbd.lovable.app/auth" },
       { name: "robots", content: "noindex" },
     ],
@@ -22,7 +29,8 @@ export const Route = createFileRoute("/auth")({
 });
 
 function AuthPage() {
-  const navigate = useNavigate();
+  const { next } = Route.useSearch();
+  const returnPath = oauthReturnPath(next);
   const { user, loading: authLoading } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
 
@@ -35,8 +43,8 @@ function AuthPage() {
   const [password, setPassword] = useState("");
 
   useEffect(() => {
-    if (user && !authLoading) navigate({ to: "/" });
-  }, [user, authLoading, navigate]);
+    if (user && !authLoading) window.location.assign(returnPath);
+  }, [user, authLoading, returnPath]);
 
   useEffect(() => {
     setError(null);
@@ -56,16 +64,19 @@ function AuthPage() {
           password,
           options: {
             data: { display_name: name || em.split("@")[0] },
-            emailRedirectTo: window.location.origin,
+            emailRedirectTo: new URL(returnPath, window.location.origin).href,
           },
         });
         if (error) throw error;
-        if (!data.session) {
+        if (data.session) {
+          window.location.assign(returnPath);
+        } else {
           setInfo("অ্যাকাউন্ট তৈরি হয়েছে। ইমেইলে পাঠানো লিঙ্কে ক্লিক করে যাচাই করুন, তারপর সাইন ইন করুন।");
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email: em, password });
         if (error) throw error;
+        window.location.assign(returnPath);
       }
     } catch (err: any) {
       setError(err?.message ?? "কিছু একটা ভুল হয়েছে।");
@@ -77,7 +88,7 @@ function AuthPage() {
   const google = async () => {
     setError(null); setBusy(true);
     const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
+      redirect_uri: new URL(returnPath, window.location.origin).href,
     });
     if (result.error) {
       setError(result.error.message ?? "Google সাইন-ইন ব্যর্থ");

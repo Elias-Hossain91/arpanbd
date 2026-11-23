@@ -11,6 +11,10 @@ export const Route = createFileRoute("/reset-password")({
     meta: [
       { title: "পাসওয়ার্ড রিসেট · অর্পণ" },
       { name: "description", content: "অর্পণে আপনার নতুন পাসওয়ার্ড সেট করুন।" },
+      { property: "og:title", content: "পাসওয়ার্ড রিসেট · অর্পণ" },
+      { property: "og:description", content: "অর্পণে আপনার নতুন পাসওয়ার্ড সেট করুন।" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
     ],
   }),
