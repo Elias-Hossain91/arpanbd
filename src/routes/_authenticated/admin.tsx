@@ -1,7 +1,7 @@
 import { Suspense, useMemo, useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { queryOptions, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
-import { ChevronLeft, Loader2, MapPin, Search, ShieldAlert, Sprout, Trash2, Gift } from "lucide-react";
+import { ChevronLeft, Loader2, MapPin, Search, ShieldAlert, ShieldOff, ShieldCheck, Sprout, Trash2, Gift } from "lucide-react";
 import { toast } from "sonner";
 import logoAsset from "@/assets/arpan-logo-transparent.png.asset.json";
 import { supabase } from "@/integrations/supabase/client";
@@ -75,12 +75,19 @@ const statsQuery = queryOptions({
 const usersQuery = queryOptions({
   queryKey: ["admin", "users"],
   queryFn: async () => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, display_name, district, points, items_given, created_at")
-      .order("created_at", { ascending: false });
-    if (error) throw new Error(error.message);
-    return data ?? [];
+    const [profilesRes, bannedRes] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id, display_name, district, points, items_given, created_at")
+        .order("created_at", { ascending: false }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any).from("banned_users").select("user_id"),
+    ]);
+    if (profilesRes.error) throw new Error(profilesRes.error.message);
+    const bannedIds = new Set(
+      ((bannedRes.data ?? []) as Array<{ user_id: string }>).map((b) => b.user_id),
+    );
+    return (profilesRes.data ?? []).map((u) => ({ ...u, is_banned: bannedIds.has(u.id) }));
   },
 });
 
@@ -291,7 +298,11 @@ function OverviewTab() {
 
 function UsersTab() {
   const { data } = useSuspenseQuery(usersQuery);
+  const queryClient = useQueryClient();
   const [q, setQ] = useState("");
+  const [toBan, setToBan] = useState<{ id: string; name: string; is_banned: boolean } | null>(null);
+  const [banning, setBanning] = useState(false);
+
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
     if (!s) return data;
@@ -300,6 +311,27 @@ function UsersTab() {
         u.display_name.toLowerCase().includes(s) || (u.district ?? "").toLowerCase().includes(s),
     );
   }, [data, q]);
+
+  async function confirmBan() {
+    if (!toBan) return;
+    setBanning(true);
+    if (toBan.is_banned) {
+      // আনব্যান: banned_users থেকে row মুছুন
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).from("banned_users").delete().eq("user_id", toBan.id);
+      if (error) { toast.error((error as { message: string }).message); setBanning(false); return; }
+      toast.success(`${toBan.name} — অ্যাকাউন্ট পুনরুদ্ধার করা হয়েছে`);
+    } else {
+      // ব্যান: banned_users-এ row যোগ করুন
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).from("banned_users").insert({ user_id: toBan.id });
+      if (error) { toast.error((error as { message: string }).message); setBanning(false); return; }
+      toast.success(`${toBan.name} — অ্যাকাউন্ট স্থগিত করা হয়েছে`);
+    }
+    setBanning(false);
+    setToBan(null);
+    await queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+  }
 
   return (
     <div className="space-y-3">
@@ -319,15 +351,37 @@ function UsersTab() {
       <ul className="bg-card border border-border rounded-2xl divide-y divide-border">
         {filtered.length === 0 && <li className="p-4 text-ink-soft text-sm">কাউকে পাওয়া যায়নি।</li>}
         {filtered.map((u) => (
-          <li key={u.id} className="p-3">
+          <li key={u.id} className={`p-3 ${u.is_banned ? "opacity-60" : ""}`}>
             <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <div className="font-bold truncate">{u.display_name}</div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold truncate">{u.display_name}</span>
+                  {u.is_banned && (
+                    <span className="text-[10px] rounded-full bg-destructive/15 text-destructive px-2 py-0.5 font-semibold shrink-0">
+                      স্থগিত
+                    </span>
+                  )}
+                </div>
                 <div className="text-ink-soft text-xs flex items-center gap-1 mt-0.5">
                   <MapPin size={11} /> {u.district ?? "জেলা নেই"}
                 </div>
               </div>
-              <span className="text-ink-soft text-xs shrink-0">যোগদান: {formatBnDate(u.created_at)}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-ink-soft text-xs">যোগদান: {formatBnDate(u.created_at)}</span>
+                <button
+                  onClick={() => setToBan({ id: u.id, name: u.display_name, is_banned: u.is_banned })}
+                  aria-label={u.is_banned ? `${u.display_name} আনব্যান` : `${u.display_name} ব্যান`}
+                  title={u.is_banned ? "আনব্যান করুন" : "ব্যান করুন"}
+                  className={`flex items-center justify-center rounded-full shrink-0 ${
+                    u.is_banned
+                      ? "bg-leaf-soft text-leaf"
+                      : "bg-destructive/10 text-destructive"
+                  }`}
+                  style={{ width: 32, height: 32 }}
+                >
+                  {u.is_banned ? <ShieldCheck size={15} /> : <ShieldOff size={15} />}
+                </button>
+              </div>
             </div>
             <div className="flex gap-4 mt-2 text-xs">
               <span className="flex items-center gap-1 text-leaf font-semibold">
@@ -340,6 +394,39 @@ function UsersTab() {
           </li>
         ))}
       </ul>
+
+      <AlertDialog open={!!toBan} onOpenChange={(o) => !o && !banning && setToBan(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {toBan?.is_banned ? "অ্যাকাউন্ট পুনরুদ্ধার করবেন?" : "অ্যাকাউন্ট স্থগিত করবেন?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {toBan?.is_banned
+                ? `"${toBan?.name}" আবার অ্যাপ ব্যবহার করতে পারবেন।`
+                : `"${toBan?.name}" লগইন করলে "অ্যাকাউন্ট স্থগিত" বার্তা দেখবেন। পরে আনব্যান করা যাবে।`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={banning}>বাতিল</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={banning}
+              onClick={(e) => { e.preventDefault(); void confirmBan(); }}
+              className={toBan?.is_banned
+                ? "bg-leaf text-primary-foreground hover:bg-leaf/90"
+                : "bg-destructive text-destructive-foreground hover:bg-destructive/90"}
+            >
+              {banning ? (
+                <Loader2 className="animate-spin" size={16} />
+              ) : toBan?.is_banned ? (
+                "পুনরুদ্ধার করুন"
+              ) : (
+                "স্থগিত করুন"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

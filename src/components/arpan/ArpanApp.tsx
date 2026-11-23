@@ -45,6 +45,7 @@ export function ArpanApp() {
   const [dbItems, setDbItems] = useState<Item[]>([]);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
+  const [isBanned, setIsBanned] = useState(false);
 
   const loadPosts = useCallback(async () => {
     setLoading(true);
@@ -97,6 +98,18 @@ export function ArpanApp() {
   useEffect(() => {
     loadFavorites();
   }, [loadFavorites]);
+
+  // ব্যান চেক: লগইন করা ইউজার ব্যান হলে স্থগিত স্ক্রিন দেখাও
+  useEffect(() => {
+    if (!user) { setIsBanned(false); return; }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("banned_users")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }: { data: { user_id: string } | null }) => setIsBanned(!!data));
+  }, [user]);
 
   // বাগ ৩ ঠিক: আসল পোস্ট থাকলে নমুনা ডেটা লুকাও; না থাকলে প্রথমবার দেখানোর জন্য নমুনা ব্যবহার করো
   const allItems = useMemo<Item[]>(
@@ -152,6 +165,28 @@ export function ArpanApp() {
     setSelected(item);
     setScreen("detail");
   };
+
+  // ব্যান হওয়া ইউজার লগইন করলে স্থগিত স্ক্রিন দেখাবে
+  if (isBanned) {
+    return (
+      <div className="min-h-screen w-full bg-paper paper-texture flex items-center justify-center p-6">
+        <div className="bg-card border border-border rounded-2xl p-8 max-w-sm w-full text-center shadow-soft">
+          <div className="text-5xl mb-4">🚫</div>
+          <h1 className="font-display font-bold text-ink text-xl">অ্যাকাউন্ট স্থগিত</h1>
+          <p className="text-ink-soft text-sm mt-2">
+            আপনার অর্পণ অ্যাকাউন্টটি অস্থায়ীভাবে স্থগিত করা হয়েছে।
+            বিস্তারিত জানতে অ্যাডমিনের সাথে যোগাযোগ করুন।
+          </p>
+          <button
+            onClick={() => signOut()}
+            className="mt-5 w-full rounded-full bg-leaf text-primary-foreground py-2.5 font-semibold text-sm"
+          >
+            লগ আউট
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen w-full bg-paper paper-texture">
