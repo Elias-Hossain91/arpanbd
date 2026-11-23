@@ -5,8 +5,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { completePasswordReset } from "@/lib/auth/reset-password.functions";
 import { Logo, Stitch } from "@/components/arpan/brand";
 import { Lock, ChevronLeft, Loader2 } from "lucide-react";
+import { oauthReturnPath } from "@/lib/oauth-return-path";
 
 export const Route = createFileRoute("/reset-password")({
+  validateSearch: (search: Record<string, unknown>): { next?: string } => {
+    const next = search["next"];
+    return typeof next === "string" ? { next } : {};
+  },
   head: () => ({
     meta: [
       { title: "পাসওয়ার্ড রিসেট · অর্পণ" },
@@ -45,6 +50,8 @@ function readTokenFromUrl(): { tokenHash: string | null; code: string | null; ty
 
 function ResetPasswordPage() {
   const navigate = useNavigate();
+  const { next } = Route.useSearch();
+  const returnPath = oauthReturnPath(next);
   const completeReset = useServerFn(completePasswordReset);
 
   const [tokenHash, setTokenHash] = useState<string | null>(null);
@@ -129,7 +136,7 @@ function ResetPasswordPage() {
         await supabase.auth.signOut();
       }
       setInfo("পাসওয়ার্ড আপডেট হয়েছে। এবার নতুন পাসওয়ার্ড দিয়ে সাইন ইন করুন।");
-      setTimeout(() => navigate({ to: "/auth" }), 1400);
+      setTimeout(() => navigate({ to: "/auth", search: { next: returnPath } }), 1400);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "পাসওয়ার্ড আপডেট করা যায়নি।";
       setError(msg);
@@ -142,7 +149,7 @@ function ResetPasswordPage() {
     <div className="min-h-screen w-full bg-paper-deep paper-texture flex items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-md bg-paper rounded-3xl shadow-leaf overflow-hidden border border-border">
         <div className="bg-card px-6 pt-6 pb-5">
-          <Link to="/auth" className="flex items-center gap-1 mb-3 text-ink-soft text-sm w-fit">
+          <Link to="/auth" search={{ next: returnPath }} className="flex items-center gap-1 mb-3 text-ink-soft text-sm w-fit">
             <ChevronLeft size={16} /> সাইন ইন পেজে
           </Link>
           <div className="flex justify-center"><Logo size={36} /></div>
@@ -166,7 +173,7 @@ function ResetPasswordPage() {
               <div className="text-center text-[13px] text-ink-soft">
                 সাইন ইন পেজ থেকে "পাসওয়ার্ড ভুলে গেছেন?" ব্যবহার করে নতুন লিঙ্ক নিন।
               </div>
-              <Link to="/auth"
+              <Link to="/auth" search={{ next: returnPath }}
                 className="mt-1 flex items-center justify-center bg-leaf text-white font-bold text-[15px] rounded-2xl shadow-leaf active:scale-[0.98] transition-transform"
                 style={{ height: 48 }}>
                 সাইন ইন পেজে যান

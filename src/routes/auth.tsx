@@ -106,7 +106,10 @@ function AuthPage() {
     setBusy(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(em, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: new URL(
+          `/reset-password?next=${encodeURIComponent(returnPath)}`,
+          window.location.origin,
+        ).href,
       });
       if (error) throw error;
       setInfo("রিসেট লিঙ্ক আপনার ইমেইলে পাঠানো হয়েছে। ইনবক্স দেখুন।");
